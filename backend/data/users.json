@@ -1,0 +1,22 @@
+[
+  {
+    "fullName": "Test User",
+    "email": "test_smg_1@example.com",
+    "phone": "9876543210",
+    "password": "Password123",
+    "gender": "Male",
+    "year": "I Year",
+    "district": "Salem",
+    "createdAt": "2026-06-17T06:28:17.862Z"
+  },
+  {
+    "fullName": "Tharaneesh K.P",
+    "email": "tharaneeshkp@gmail.com",
+    "phone": "6969067085",
+    "password": "ramya2507",
+    "gender": "Male",
+    "year": "IV Year",
+    "district": "Salem",
+    "createdAt": "2026-06-17T12:24:00.433Z"
+  }
+]

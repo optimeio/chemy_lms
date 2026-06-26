@@ -1,0 +1,102 @@
+[
+  {
+    "id": "1",
+    "title": "Embedded Systems",
+    "content": "Learn the fundamentals of Embedded Systems, microcontrollers, assembly, and C programming for hardware interfaces.",
+    "image": "",
+    "ppt": "",
+    "pptName": "",
+    "video": "",
+    "videoName": ""
+  },
+  {
+    "id": "2",
+    "title": "Electric Vehicles",
+    "content": "Explore Electric Vehicle powertrain, battery management systems, motor control, and EV architecture.",
+    "image": "",
+    "ppt": "",
+    "pptName": "",
+    "video": "",
+    "videoName": ""
+  },
+  {
+    "id": "3",
+    "title": "MERN Stack Development",
+    "content": "Master MongoDB, Express.js, React, and Node.js to build modern, full-stack web applications.",
+    "image": "",
+    "ppt": "",
+    "pptName": "",
+    "video": "",
+    "videoName": ""
+  },
+  {
+    "id": "4",
+    "title": "IoT & Sensor Networks",
+    "content": "Build smart connected devices using sensor technology, wireless protocols, and cloud platforms.",
+    "image": "",
+    "ppt": "",
+    "pptName": "",
+    "video": "",
+    "videoName": ""
+  },
+  {
+    "id": "5",
+    "title": "Python for Data Science",
+    "content": "Learn core Python concepts, data analysis with NumPy/Pandas, and visualization tools.",
+    "image": "",
+    "ppt": "",
+    "pptName": "",
+    "video": "",
+    "videoName": ""
+  },
+  {
+    "id": "6",
+    "title": "Machine Learning Fundamentals",
+    "content": "Introduction to supervised and unsupervised machine learning algorithms, training models, and validation.",
+    "image": "",
+    "ppt": "",
+    "pptName": "",
+    "video": "",
+    "videoName": ""
+  },
+  {
+    "id": "7",
+    "title": "Cloud Computing (AWS)",
+    "content": "Deploy and maintain scalable web architectures on Amazon Web Services cloud infrastructure.",
+    "image": "",
+    "ppt": "",
+    "pptName": "",
+    "video": "",
+    "videoName": ""
+  },
+  {
+    "id": "8",
+    "title": "Cybersecurity Essentials",
+    "content": "Protect networks and systems against digital threats, understand cryptography and secure practices.",
+    "image": "",
+    "ppt": "",
+    "pptName": "",
+    "video": "",
+    "videoName": ""
+  },
+  {
+    "id": "9",
+    "title": "Digital Marketing",
+    "content": "Strategies for online marketing, search engine optimization, content creation, and analytics tools.",
+    "image": "",
+    "ppt": "",
+    "pptName": "",
+    "video": "",
+    "videoName": ""
+  },
+  {
+    "id": "10",
+    "title": "AutoCAD & Mechanical Design",
+    "content": "Create precise 2D drafting and 3D modeling specifications for mechanical parts and assemblies.",
+    "image": "",
+    "ppt": "",
+    "pptName": "",
+    "video": "",
+    "videoName": ""
+  }
+]
