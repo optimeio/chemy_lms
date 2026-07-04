@@ -2,21 +2,31 @@ import { motion } from 'framer-motion';
 import '../styles/Features.css';
 
 export default function Features() {
-  const competencies = [
+  const programs = [
     {
-      icon: '⚙️',
-      title: 'Engineering Excellence',
-      description: 'Precision mechanical engineering and energy technology solutions'
+      icon: '🎓',
+      title: 'Faculty Development Program (FDP)',
+      description: 'Empowering faculty with industry-relevant skills and practical teaching methods.'
     },
     {
-      icon: '📈',
-      title: 'Strategic Brand Management',
-      description: 'Strengthening brand presence and operations across Tamil Nadu'
+      icon: '👩‍🎓',
+      title: 'Student Development Program (SDP)',
+      description: 'Enhancing student employability through hands-on training and live project exposure.'
     },
     {
-      icon: '🌱',
-      title: 'Sustainable Innovation',
-      description: 'Pioneering clean energy technology and resource optimization'
+      icon: '🧪',
+      title: 'Technical Training Programs',
+      description: 'Career-focused courses on automation, IoT, and advanced manufacturing systems.'
+    },
+    {
+      icon: '🔧',
+      title: 'IoT & Industry 4.0 Solutions',
+      description: 'Smart solutions designed for modern industrial operations and digital transformation.'
+    },
+    {
+      icon: '🚀',
+      title: 'Placement & Career Support',
+      description: 'Connecting learners with opportunities, internships, and real-world hiring partners.'
     },
   ];
 
@@ -27,14 +37,14 @@ export default function Features() {
 
   return (
     <>
-      {/* Competencies Section */}
-      <section className="features-section" id="competencies">
+      <section className="features-section" id="programs">
         <div className="features-header">
-          <h2 className="section-title">Core Competencies</h2>
-          <p className="section-subtitle">Driving growth and transforming industry standards through strategic innovation</p>
+          <span className="section-overline">What We Offer</span>
+          <h2 className="section-title">Our Programs & Solutions</h2>
+          <p className="section-subtitle">Building learning journeys that bring together technology, training, and career readiness.</p>
         </div>
         <div className="features-grid">
-          {competencies.map((comp, index) => (
+          {programs.map((program, index) => (
             <motion.div
               key={index}
               className="feature-card"
@@ -44,13 +54,14 @@ export default function Features() {
               viewport={{ once: true }}
               whileHover={{ y: -6 }}
             >
-              <div className="feature-icon">{comp.icon}</div>
-              <h3 className="feature-title">{comp.title}</h3>
-              <p className="feature-description">{comp.description}</p>
+              <div className="feature-icon">{program.icon}</div>
+              <h3 className="feature-title">{program.title}</h3>
+              <p className="feature-description">{program.description}</p>
             </motion.div>
           ))}
         </div>
       </section>
+
     </>
   );
 }

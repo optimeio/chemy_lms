@@ -4,48 +4,47 @@ import '../styles/Dashboard.css';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [user, setUser] = useState({ fullName: 'Technical Student' });
+  const [user, setUser] = useState(() => {
+    const storedUser = localStorage.getItem('user');
+    return storedUser ? JSON.parse(storedUser) : { fullName: 'Technical Student' };
+  });
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [courses, setCourses] = useState([]);
-  const [assignedCourses, setAssignedCourses] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (!storedUser) {
-      navigate('/login');
-    } else {
-      const parsedUser = JSON.parse(storedUser);
-      setUser(parsedUser);
-      fetchDashboardData(parsedUser.email);
-    }
-  }, [navigate]);
 
   const fetchDashboardData = async (email) => {
     try {
-      setLoading(true);
       const profileRes = await fetch(`/api/users/${encodeURIComponent(email)}`);
       const profileData = await profileRes.json();
       let assigned = [];
       if (profileData.success && profileData.user) {
         setUser(profileData.user);
         assigned = profileData.user.assignedCourses || [];
-        setAssignedCourses(assigned);
       }
 
       const coursesRes = await fetch('/api/courses');
       const coursesData = await coursesRes.json();
       if (coursesData.success) {
-        const filtered = coursesData.courses.filter(c => assigned.includes(c.title));
+        const filtered = coursesData.courses.filter((c) => assigned.includes(c.title));
         setCourses(filtered);
       }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
-    } finally {
-      setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!user?.email) {
+      navigate('/login');
+      return;
+    }
+
+    const load = async () => {
+      await fetchDashboardData(user.email);
+    };
+
+    void load();
+  }, [navigate, user?.email]);
 
   const handleSignOut = () => {
     localStorage.removeItem('user');
@@ -111,6 +110,217 @@ export default function Dashboard() {
       )
     }
   ];
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'Dashboard':
+        return (
+          <div className="lms-dashboard-content-tab">
+            <div className="lms-banner-card">
+              <div className="banner-left">
+                <div className="banner-icon-box">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                  </svg>
+                </div>
+                <div className="banner-info">
+                  <h3>Upcoming Technical Workshop: EV Battery Management Systems</h3>
+                  <p>Join us on Saturday at 2:00 PM for an interactive live session with industrial experts.</p>
+                </div>
+              </div>
+              <button className="lms-banner-btn" onClick={() => setActiveTab('Live Classes')}>
+                <span>View Live Schedule</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </button>
+            </div>
+
+            <div className="lms-progress-section">
+              <div className="progress-section-header">
+                <h3>My Active Courses ({courses.length})</h3>
+              </div>
+
+              {courses.length === 0 ? (
+                <div className="lms-empty-state-card">
+                  <div className="empty-state-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                    </svg>
+                  </div>
+                  <h4>No courses assigned yet</h4>
+                  <p>You haven't been assigned to any courses. Please contact the administrator to get access.</p>
+                </div>
+              ) : (
+                    <div className="lms-courses-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '24px' }}>
+                  {courses.map((course) => (
+                    <div key={course.id || course._id} className="lms-course-card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
+                      <h4 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)' }}>{course.title}</h4>
+                      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', flexGrow: 1, lineBreak: 'anywhere' }}>{course.content}</p>
+                      <button className="lms-banner-btn" style={{ padding: '8px 16px', fontSize: '13px', alignSelf: 'flex-start' }} onClick={() => { setSelectedCourse(course); setActiveTab('My Courses'); }}>
+                        Start Learning
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'My Courses':
+        if (selectedCourse) {
+          return (
+            <div className="lms-course-detail" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '30px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button className="lms-back-btn" style={{ width: 'auto', display: 'inline-flex', padding: '8px 12px' }} onClick={() => setSelectedCourse(null)}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                  <span>Back to Courses</span>
+                </button>
+                <span style={{ background: 'rgba(29,78,216,0.06)', color: 'var(--primary)', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700' }}>Active Course</span>
+              </div>
+              <h2 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-primary)' }}>{selectedCourse.title}</h2>
+              <p style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>{selectedCourse.content}</p>
+
+              {/* Course Media sections */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginTop: '10px' }}>
+                {selectedCourse.video && (
+                  <div style={{ border: '1px solid var(--border-color)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <h4 style={{ fontWeight: '700', color: 'var(--text-primary)' }}>Course Video Lecture</h4>
+                    <video controls src={selectedCourse.video} style={{ width: '100%', borderRadius: '8px', background: '#000' }} />
+                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>File: {selectedCourse.videoName || 'Lecture Video'}</span>
+                  </div>
+                )}
+                {selectedCourse.ppt && (
+                  <div style={{ border: '1px solid var(--border-color)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <h4 style={{ fontWeight: '700', color: 'var(--text-primary)' }}>Course Materials & PPT</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg)', padding: '12px', borderRadius: '8px' }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                      <div style={{ flexGrow: 1, minWidth: 0 }}>
+                        <p style={{ fontWeight: '600', fontSize: '13px', color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{selectedCourse.pptName || 'Presentation Slide'}</p>
+                        <a href={selectedCourse.ppt} download className="lms-banner-btn" style={{ padding: '6px 12px', fontSize: '11px', marginTop: '6px', display: 'inline-flex' }}>Download Slides</a>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {!selectedCourse.video && !selectedCourse.ppt && (
+                    <div style={{ border: '1px solid var(--border-color)', borderRadius: '12px', padding: '30px', textAlign: 'center', gridColumn: '1 / -1' }}>
+                    <p style={{ color: 'var(--text-secondary)' }}>No video lectures or downloadable presentation materials are uploaded for this course yet.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div className="lms-progress-section">
+            <div className="progress-section-header">
+              <h3>All Enrolled Courses</h3>
+            </div>
+            {courses.length === 0 ? (
+              <div className="lms-empty-state-card">
+                <div className="empty-state-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                  </svg>
+                </div>
+                <h4>No courses assigned yet</h4>
+                <p>You haven't been assigned to any courses. Please contact the administrator to get access.</p>
+              </div>
+            ) : (
+              <div className="lms-courses-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '24px' }}>
+                {courses.map((course) => (
+                  <div key={course.id || course._id} className="lms-course-card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
+                    <h4 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)' }}>{course.title}</h4>
+                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', flexGrow: 1, lineBreak: 'anywhere' }}>{course.content}</p>
+                    <button className="lms-banner-btn" style={{ padding: '8px 16px', fontSize: '13px', alignSelf: 'flex-start' }} onClick={() => setSelectedCourse(course)}>
+                      Start Learning
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      case 'Live Classes':
+        return (
+          <div className="lms-empty-state-card">
+            <div className="empty-state-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+              </svg>
+            </div>
+            <h4>No Live Classes Scheduled Today</h4>
+            <p>You are all caught up! There are no scheduled live sessions for today. Check back later or review materials.</p>
+          </div>
+        );
+
+      case 'Assignments / Quiz':
+        return (
+          <div className="lms-empty-state-card">
+            <div className="empty-state-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+            </div>
+            <h4>No Pending Quizzes or Assignments</h4>
+            <p>Great job! You have submitted all assigned materials. Contact your mentor for extra-credit quizzes.</p>
+          </div>
+        );
+
+      case 'Certificates':
+        return (
+          <div className="lms-empty-state-card">
+            <div className="empty-state-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+            </div>
+            <h4>No Certificates Earned Yet</h4>
+            <p>Complete all modules and assignments of any assigned course to unlock and download your completion certificate.</p>
+          </div>
+        );
+
+      case 'Profile':
+        return (
+          <div className="lms-profile-card" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '30px', display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '600px' }}>
+            <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-primary)', borderBottom: '1px solid var(--bg-section)', paddingBottom: '15px' }}>Student Profile Details</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '15px', fontSize: '14px' }}>
+              <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>Full Name:</span>
+              <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{user.fullName || 'Technical Student'}</span>
+
+              <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>Email Address:</span>
+              <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{user.email || 'N/A'}</span>
+
+              <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>Phone Number:</span>
+              <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{user.phone || 'N/A'}</span>
+
+              <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>College:</span>
+              <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{user.college || 'N/A'}</span>
+
+              <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>Department:</span>
+              <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{user.department || 'N/A'}</span>
+
+              <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>Year of Study:</span>
+              <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{user.year || 'N/A'}</span>
+
+              <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>Gender:</span>
+              <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{user.gender || 'N/A'}</span>
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   const initialLetter = user.fullName ? user.fullName.trim().charAt(0).toUpperCase() : 'T';
 
@@ -123,7 +333,7 @@ export default function Dashboard() {
             <span className="logo-accent-red"></span>
           </div>
           <div className="lms-logo-text">
-            <h2>SM GROUPS</h2>
+            <h2>CHEMY LMS</h2>
             <p>excellence online</p>
           </div>
         </div>
@@ -233,3 +443,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

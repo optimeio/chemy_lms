@@ -18,7 +18,7 @@ export default function Contact() {
     {
       icon: '✉️',
       title: 'Email',
-      details: ['thesmgroups@gmail.com', 'Response within 24h'],
+      details: ['chemylms@gmail.com', 'Response within 24h'],
     },
   ];
 

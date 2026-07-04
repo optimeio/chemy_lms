@@ -3,10 +3,17 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
+const { execSync } = require('child_process');
+const net = require('net');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const DEFAULT_PORT = parseInt(process.env.PORT, 10) || 5000;
+const MAX_PORT_ATTEMPTS = 10;
+let PORT = DEFAULT_PORT;
+let serverStarted = false;
+let server;
 
 // Middleware — handle CORS preflight explicitly
 app.use(cors({
@@ -17,6 +24,67 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// ============ OTP & Password Reset Configuration ============
+// Store OTPs in memory (expires after 10 minutes)
+const otpStorage = new Map();
+
+// Email transporter configuration
+// Using Gmail SMTP - Update with environment variables for production
+const emailTransporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER || 'your-email@gmail.com',
+    pass: process.env.EMAIL_PASSWORD || 'your-app-password', // Use Gmail App Password
+  },
+});
+
+// Verify email configuration
+emailTransporter.verify((error, success) => {
+  if (error) {
+    console.warn('⚠️  Email service configuration issue:', error.message);
+    console.log('   Password reset emails will not be sent. Configure EMAIL_USER and EMAIL_PASSWORD in .env');
+  } else {
+    console.log('✅ Email service is ready');
+  }
+});
+
+// Generate OTP
+const generateOTP = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// Send OTP email
+const sendOTPEmail = async (email, otp) => {
+  try {
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'noreply@chemylms.com',
+      to: email,
+      subject: 'Password Reset OTP - Chemy LMS',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #333; text-align: center;">Password Reset Request</h2>
+          <p style="color: #666; font-size: 14px;">Hi,</p>
+          <p style="color: #666; font-size: 14px;">You requested to reset your password. Use the OTP below to proceed:</p>
+          <div style="background-color: #f0f0f0; padding: 20px; text-align: center; margin: 20px 0; border-radius: 5px;">
+            <h1 style="color: #007bff; letter-spacing: 2px; margin: 0;">${otp}</h1>
+          </div>
+          <p style="color: #999; font-size: 12px;">This OTP will expire in 10 minutes.</p>
+          <p style="color: #999; font-size: 12px;">If you didn't request this, please ignore this email.</p>
+          <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
+          <p style="color: #999; font-size: 12px; text-align: center;">© Chemy LMS - Learning Management System</p>
+        </div>
+      `,
+    };
+    
+    await emailTransporter.sendMail(mailOptions);
+    console.log(`✅ OTP sent to ${email}`);
+    return true;
+  } catch (error) {
+    console.error('Error sending OTP email:', error);
+    return false;
+  }
+};
 
 // Uploads directory configuration
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
@@ -124,29 +192,79 @@ try {
 
 // Database Connection
 let isMongoConnected = false;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/sm_groups';
+const LOCAL_MONGO_URI = process.env.LOCAL_MONGO_URI || 'mongodb://127.0.0.1:27017/chemy_lms';
+const MONGO_URI = process.env.MONGO_URI;
+const ATLAS_DIRECT_URI = process.env.ATLAS_DIRECT_URI;
 
 mongoose.set('strictQuery', true);
-mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 3000 })
-  .then(async () => {
-    console.log('MongoDB connected.');
-    isMongoConnected = true;
-    try {
-      const count = await Course.countDocuments();
-      if (count === 0) {
-        // Map and insert, stripping default ID for MongoDB
-        await Course.insertMany(DEFAULT_COURSES.map(({ id, ...c }) => c));
-        console.log('Default courses initialized in MongoDB.');
-      }
-    } catch (err) {
-      console.error('Error initializing default courses:', err);
-    }
-  })
-  .catch(async () => {
-    console.log('MongoDB unavailable — using local JSON storage.');
-    // Fully disconnect so mongoose timers don't cause the process to exit
-    try { await mongoose.disconnect(); } catch (_) { /* ignore */ }
+
+const connectWithMongo = async (uri) => {
+  await mongoose.connect(uri, {
+    serverSelectionTimeoutMS: 10000,
+    connectTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
   });
+  console.log(`MongoDB connected: ${uri}`);
+  isMongoConnected = true;
+  try {
+    const count = await Course.countDocuments();
+    if (count === 0) {
+      await Course.insertMany(DEFAULT_COURSES.map(({ id, ...c }) => c));
+      console.log('Default courses initialized in MongoDB.');
+    }
+  } catch (err) {
+    console.error('Error initializing default courses:', err);
+  }
+};
+
+const tryMongoConnections = async () => {
+  const errors = [];
+
+  if (MONGO_URI) {
+    try {
+      console.log('Attempting MongoDB Atlas connection via MONGO_URI...');
+      await connectWithMongo(MONGO_URI);
+      return;
+    } catch (err) {
+      errors.push({ uri: 'MONGO_URI', message: err.message });
+      console.error('Atlas connection failed:', err.message || err);
+    }
+  }
+
+  if (MONGO_URI?.startsWith('mongodb+srv') && ATLAS_DIRECT_URI) {
+    try {
+      console.log('SRV connection failed; trying direct Atlas URI...');
+      await connectWithMongo(ATLAS_DIRECT_URI);
+      return;
+    } catch (err) {
+      errors.push({ uri: 'ATLAS_DIRECT_URI', message: err.message });
+      console.error('Direct Atlas connection failed:', err.message || err);
+      if (err.message && err.message.includes('whitelist')) {
+        console.error('Atlas error suggests IP access is blocked. Confirm the current IP is allowed in Atlas Network Access.');
+      }
+    }
+  }
+
+  try {
+    console.log('Attempting local MongoDB connection...');
+    await connectWithMongo(LOCAL_MONGO_URI);
+    return;
+  } catch (err) {
+    errors.push({ uri: 'LOCAL_MONGO_URI', message: err.message });
+    console.error('Local MongoDB connection failed:', err.message || err);
+  }
+
+  if (!isMongoConnected) {
+    console.log('MongoDB unavailable — using local JSON storage.');
+    console.table(errors);
+    try { await mongoose.disconnect(); } catch (_) { /* ignore */ }
+  }
+};
+
+(async () => {
+  await tryMongoConnections();
+  await startServer();
+})();
 
 // Helper validation functions
 const validateEmail = (email) => {
@@ -222,18 +340,40 @@ app.post('/api/auth/register', async (req, res) => {
       }
 
       // Create new user in Mongo
-      const newUser = new User({ fullName, email, phone, password, gender, year, district, college, department, assignedCourses: [] });
+      const newUser = new User({ fullName, email, phone, password, gender, year, district, college, department, role: 'Student', dashboard: 'a', assignedCourses: [] });
       await newUser.save();
-      return res.status(201).json({ success: true, message: 'Registration successful!', user: { fullName, email, college, department } });
+      return res.status(201).json({
+        success: true,
+        message: 'Registration successful!',
+        user: { fullName, email, college, department, role: 'Student', dashboard: 'a' },
+      });
     } else {
       const localUsers = getLocalUsers();
       if (localUsers.some(u => u.email === email)) {
         return res.status(400).json({ success: false, errors: { email: 'Email is already registered.' } });
       }
 
-      const newUser = { fullName, email, phone, password, gender, year, district, college, department, assignedCourses: [], createdAt: new Date() };
+      const newUser = {
+        fullName,
+        email,
+        phone,
+        password,
+        gender,
+        year,
+        district,
+        college,
+        department,
+        role: 'Student',
+        dashboard: 'a',
+        assignedCourses: [],
+        createdAt: new Date(),
+      };
       saveLocalUser(newUser);
-      return res.status(201).json({ success: true, message: 'Registration successful (stored locally)!', user: { fullName, email, college, department } });
+      return res.status(201).json({
+        success: true,
+        message: 'Registration successful (stored locally)!',
+        user: { fullName, email, college, department, role: 'Student', dashboard: 'a' },
+      });
     }
 
   } catch (err) {
@@ -252,10 +392,14 @@ app.post('/api/auth/login', async (req, res) => {
 
     // Hardcoded admin account
     if (
-      (email === 'admin@smgroups.com' && password === 'admin123') ||
-      (email === 'thesmgroups@gmail.com' && (password === 'TSMGPVT@2026' || password === '-n TSMGPVT@2026'))
+      (email === 'admin@chemylms.com' && password === 'admin123') ||
+      (email === 'chemylms@gmail.com' && (password === 'CHEMYLMS@2026' || password === '-n CHEMYLMS@2026'))
     ) {
-      return res.json({ success: true, message: 'Login successful!', user: { fullName: 'Admin', email: email } });
+      return res.json({
+        success: true,
+        message: 'Login successful!',
+        user: { fullName: 'Admin', email, role: 'Super Admin', dashboard: 'd' },
+      });
     }
 
     if (isMongoConnected) {
@@ -263,19 +407,221 @@ app.post('/api/auth/login', async (req, res) => {
       if (!user || user.password !== password) { // Note: Simple password matching for demo purposes
         return res.status(400).json({ success: false, message: 'Invalid email or password.' });
       }
-      return res.json({ success: true, message: 'Login successful!', user: { fullName: user.fullName, email: user.email, college: user.college, department: user.department } });
+      return res.json({
+        success: true,
+        message: 'Login successful!',
+        user: {
+          fullName: user.fullName,
+          email: user.email,
+          college: user.college,
+          department: user.department,
+          role: user.role || 'Student',
+          dashboard: user.dashboard || 'a',
+        },
+      });
     } else {
       const localUsers = getLocalUsers();
       const user = localUsers.find(u => u.email === email && u.password === password);
       if (!user) {
         return res.status(400).json({ success: false, message: 'Invalid email or password.' });
       }
-      return res.json({ success: true, message: 'Login successful!', user: { fullName: user.fullName, email: user.email, college: user.college, department: user.department } });
+      return res.json({
+        success: true,
+        message: 'Login successful!',
+        user: {
+          fullName: user.fullName,
+          email: user.email,
+          college: user.college,
+          department: user.department,
+          role: user.role || 'Student',
+          dashboard: user.dashboard || 'a',
+        },
+      });
     }
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ success: false, message: 'An internal server error occurred.' });
   }
+});
+
+// ============ PASSWORD RESET & OTP ROUTES ============
+
+// Forgot Password - Generate and send OTP
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email || !validateEmail(email)) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid email address.' });
+    }
+
+    // Check if user exists
+    let userExists = false;
+
+    if (isMongoConnected) {
+      const user = await User.findOne({ email });
+      userExists = !!user;
+    } else {
+      const localUsers = getLocalUsers();
+      userExists = localUsers.some(u => u.email === email);
+    }
+
+    if (!userExists) {
+      // Security: Don't reveal if email exists
+      return res.json({
+        success: true,
+        message: 'If this email exists in our system, you will receive an OTP shortly.',
+      });
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+    const expiryTime = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    // Store OTP
+    otpStorage.set(email, { otp, expiryTime });
+
+    // Send OTP email
+    const emailSent = await sendOTPEmail(email, otp);
+
+    if (!emailSent) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP email. Please try again later or contact support.',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'OTP has been sent to your email address.',
+    });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.status(500).json({ success: false, message: 'An error occurred. Please try again later.' });
+  }
+});
+
+// Verify OTP
+app.post('/api/auth/verify-otp', (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: 'Email and OTP are required.' });
+    }
+
+    const storedOtpData = otpStorage.get(email);
+
+    if (!storedOtpData) {
+      return res.status(400).json({ success: false, message: 'OTP not found or expired. Please request a new OTP.' });
+    }
+
+    const { otp: storedOtp, expiryTime } = storedOtpData;
+
+    // Check if OTP has expired
+    if (Date.now() > expiryTime) {
+      otpStorage.delete(email);
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new OTP.' });
+    }
+
+    // Verify OTP
+    if (otp !== storedOtp) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP. Please try again.' });
+    }
+
+    res.json({
+      success: true,
+      message: 'OTP verified successfully.',
+    });
+  } catch (err) {
+    console.error('OTP verification error:', err);
+    res.status(500).json({ success: false, message: 'An error occurred during verification.' });
+  }
+});
+
+// Reset Password
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { email, otp, newPassword, confirmPassword } = req.body;
+
+    if (!email || !otp || !newPassword || !confirmPassword) {
+      return res.status(400).json({ success: false, message: 'All fields are required.' });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ success: false, message: 'Passwords do not match.' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long.' });
+    }
+
+    if (!/(?=.*[A-Za-z])(?=.*\d)/.test(newPassword)) {
+      return res.status(400).json({ success: false, message: 'Password must contain both letters and numbers.' });
+    }
+
+    // Verify OTP first
+    const storedOtpData = otpStorage.get(email);
+
+    if (!storedOtpData) {
+      return res.status(400).json({ success: false, message: 'OTP not found or expired. Please request a new OTP.' });
+    }
+
+    const { otp: storedOtp, expiryTime } = storedOtpData;
+
+    if (Date.now() > expiryTime) {
+      otpStorage.delete(email);
+      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new OTP.' });
+    }
+
+    if (otp !== storedOtp) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP. Password reset failed.' });
+    }
+
+    // OTP verified - Now reset password
+    if (isMongoConnected) {
+      const user = await User.findOneAndUpdate(
+        { email },
+        { password: newPassword },
+        { new: true }
+      );
+
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found.' });
+      }
+
+      // Clear OTP after successful reset
+      otpStorage.delete(email);
+
+      return res.json({
+        success: true,
+        message: 'Password has been reset successfully. Please log in with your new password.',
+      });
+    } else {
+      const localUsers = getLocalUsers();
+      const index = localUsers.findIndex(u => u.email === email);
+
+      if (index === -1) {
+        return res.status(404).json({ success: false, message: 'User not found.' });
+      }
+
+      localUsers[index].password = newPassword;
+      fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
+
+      // Clear OTP after successful reset
+      otpStorage.delete(email);
+
+      return res.json({
+        success: true,
+        message: 'Password has been reset successfully. Please log in with your new password.',
+      });
+    }
+  } catch (err) {
+    console.error('Password reset error:', err);
+    res.status(500).json({ success: false, message: 'An error occurred during password reset.' });
+  }
+});
+
 // File Upload helper functions
 const saveUploadedFile = (base64Data, originalName) => {
   if (!base64Data || !originalName) return null;
@@ -606,14 +952,113 @@ app.post('/api/admin/users/:email/assign', async (req, res) => {
   }
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+// Utility function to check if a port is available
+const isPortAvailable = (port) => {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    
+    server.once('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve(false);
+      } else {
+        resolve(false);
+      }
+    });
+    
+    server.once('listening', () => {
+      server.close();
+      resolve(true);
+    });
+    
+    server.listen(port, '127.0.0.1');
+  });
+};
+
+// Utility function to find the next available port
+const findAvailablePort = async (startPort, maxAttempts) => {
+  for (let i = 0; i < maxAttempts; i++) {
+    const portToTry = startPort + i;
+    const available = await isPortAvailable(portToTry);
+    if (available) {
+      return portToTry;
+    }
+  }
+  return null;
+};
+
+const startServer = async () => {
+  if (serverStarted) return;
+
+  try {
+    // Check if the default port is available
+    const defaultPortAvailable = await isPortAvailable(DEFAULT_PORT);
+    
+    if (!defaultPortAvailable) {
+      console.warn(`⚠️  Port ${DEFAULT_PORT} is already in use. Searching for an available port...`);
+      const availablePort = await findAvailablePort(DEFAULT_PORT, MAX_PORT_ATTEMPTS);
+      
+      if (!availablePort) {
+        console.error(`\n❌ ERROR: No available ports found in range ${DEFAULT_PORT}-${DEFAULT_PORT + MAX_PORT_ATTEMPTS - 1}`);
+        console.error('Please stop other Node.js processes and try again.');
+        if (process.platform === 'win32') {
+          try {
+            const output = execSync(`netstat -ano | findstr :${DEFAULT_PORT}`, { encoding: 'utf8' });
+            console.error(`\nProcesses using port ${DEFAULT_PORT}:\n${output.trim()}`);
+            console.error(`\nTo free the port, run: taskkill /PID <PID> /F`);
+          } catch (e) {
+            // ignore
+          }
+        }
+        process.exit(1);
+      }
+      
+      PORT = availablePort;
+      console.log(`✅ Using port ${PORT} instead (${DEFAULT_PORT} was occupied)`);
+    }
+
+    // Now listen on the determined port
+    server = app.listen(PORT, '127.0.0.1', () => {
+      serverStarted = true;
+      console.log(`\n🚀 Server is running on http://localhost:${PORT}`);
+      if (PORT !== DEFAULT_PORT) {
+        console.log(`   (Default port ${DEFAULT_PORT} was already in use)`);
+      }
+    });
+
+    server.on('error', (err) => {
+      if (err && err.code === 'EADDRINUSE') {
+        console.error(`\n❌ ERROR: Port ${PORT} is already in use. Backend cannot start on this port.`);
+        if (process.platform === 'win32') {
+          try {
+            const output = execSync(`netstat -ano | findstr :${PORT}`, { encoding: 'utf8' });
+            console.error(`\nActive processes:\n${output.trim()}`);
+            console.error(`\nTo free the port, run: taskkill /PID <PID> /F`);
+          } catch (e) {
+            console.error('Could not determine which process is using this port.');
+          }
+        } else {
+          try {
+            const output = execSync(`lsof -i :${PORT} -Pn`, { encoding: 'utf8' });
+            console.error(`\nActive processes:\n${output.trim()}`);
+            console.error(`\nTo free the port, run: kill <PID>`);
+          } catch (e) {
+            console.error('Could not determine which process is using this port.');
+          }
+        }
+        process.exit(1);
+      }
+      console.error('Server error:', err);
+      process.exit(1);
+    });
+
+    server.on('close', () => {
+      console.log('\n⚠️  Server closed');
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+};
 
 // Keep the process alive — prevents Node from exiting when mongoose disconnects
-server.on('error', (err) => {
-  console.error('Server error:', err);
-});
-
-// Heartbeat to keep the event loop alive (mongoose disconnect can drain it)
 setInterval(() => {}, 1000 * 60 * 30); // 30-min no-op timer

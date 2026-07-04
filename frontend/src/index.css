@@ -1,33 +1,34 @@
 /* ==================== IMPORT FONTS ==================== */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 
 /* ==================== CSS VARIABLES ==================== */
 :root {
-  --red-primary: #C41E3A;
-  --red-dark: #8B0000;
-  --red-light: #E63946;
-  --red-accent: #FF2D47;
-  --black: #0a0a0a;
-  --black-soft: #1a1a1a;
-  --gray-900: #222222;
-  --gray-800: #333333;
-  --gray-700: #444444;
-  --gray-600: #555555;
-  --gray-500: #666666;
-  --gray-400: #888888;
-  --gray-300: #aaaaaa;
-  --gray-200: #d0d0d0;
-  --gray-100: #e8e8e8;
-  --gray-50: #f5f5f5;
+  --primary: #1D4ED8;
+  --primary-dark: #173B9B;
   --white: #ffffff;
-  --off-white: #fafafa;
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
-  --shadow-md: 0 8px 24px rgba(0,0,0,0.08);
-  --shadow-lg: 0 16px 48px rgba(0,0,0,0.12);
-  --shadow-red: 0 8px 24px rgba(196, 30, 58, 0.15);
-  --radius-sm: 6px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
+  --bg-global: #FAFAF8;
+  --bg-section: #F7FAFF;
+  --bg-card: #FFFFFF;
+  
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  
+  --border-color: rgba(15,23,42,0.06);
+  
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+  
+  --sidebar-bg: #0F172A;
+  --footer-bg: #0F172A;
+  
+  --shadow-primary: 0 12px 30px rgba(29,78,216,0.12);
+  --shadow-card: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --shadow-card-hover: 0 20px 40px rgba(29,78,216,0.06);
+  
+  --radius-sm: 12px; 
+  --radius-md: 18px; 
+  --radius-lg: 24px;
 }
 
 /* ==================== GLOBAL RESET ==================== */
@@ -42,13 +43,38 @@ html {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: var(--white);
-  color: var(--gray-800);
+  font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: linear-gradient(180deg, var(--bg-global) 0%, var(--bg-section) 35%, #F0FDFA 70%, var(--bg-card) 100%);
+  background-attachment: fixed;
+  color: var(--text-secondary);
   line-height: 1.6;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  position: relative;
+}
+
+/* Global soft radial glow effects */
+body::before, body::after {
+  content: '';
+  position: fixed;
+  width: 800px;
+  height: 800px;
+  border-radius: 50%;
+  z-index: -1;
+  pointer-events: none;
+}
+
+body::before {
+  top: -200px;
+  left: -200px;
+  background: radial-gradient(circle, rgba(29,78,216,0.08) 0%, transparent 70%);
+}
+
+body::after {
+  bottom: -200px;
+  right: -200px;
+  background: radial-gradient(circle, rgba(29,78,216,0.04) 0%, transparent 70%);
 }
 
 ::-webkit-scrollbar {
@@ -56,16 +82,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--gray-50);
+  background: var(--bg-card);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--red-primary);
+  background: var(--primary);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--red-dark);
+  background: var(--primary-dark);
 }
 
 #root {
@@ -80,63 +106,89 @@ body {
 }
 
 .section-title {
-  font-size: 36px;
-  font-weight: 800;
-  color: var(--black-soft);
+  font-family: 'Playfair Display', serif;
+  font-size: 38px;
+  font-weight: 700;
+  color: var(--text-primary);
   letter-spacing: -0.5px;
 }
 
 .section-subtitle {
   font-size: 16px;
-  color: var(--gray-500);
+  color: var(--text-secondary);
   margin-top: 10px;
   line-height: 1.7;
 }
 
 .btn {
-  padding: 12px 28px;
+  padding: 12px 30px;
   border: none;
   border-radius: var(--radius-sm);
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   text-decoration: none;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   font-family: inherit;
   letter-spacing: 0.3px;
 }
 
 .btn-primary {
-  background: var(--red-primary);
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
   color: var(--white);
-  box-shadow: 0 4px 16px rgba(196, 30, 58, 0.2);
+  box-shadow: var(--shadow-primary);
 }
 
 .btn-primary:hover {
-  background: var(--red-dark);
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
   transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(196, 30, 58, 0.3);
 }
 
+.btn-outline {
+  background: transparent;
+  color: var(--primary);
+  border: 1px solid rgba(29,78,216,0.12);
+}
+
+.btn-outline:hover {
+  background: rgba(29,78,216,0.03);
+}
+
+/* Override existing secondary buttons to act as outlines if they exist */
 .btn-secondary {
   background: transparent;
-  color: var(--black-soft);
-  border: 2px solid var(--gray-200);
+  color: var(--primary);
+  border: 1px solid rgba(29,78,216,0.08);
 }
 
 .btn-secondary:hover {
-  border-color: var(--red-primary);
-  color: var(--red-primary);
-  background: rgba(196, 30, 58, 0.03);
+  background: rgba(29,78,216,0.03);
+  transform: translateY(-2px);
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, var(--red-primary), var(--red-dark));
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* Global Card Utility */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card:hover {
+  transform: translateY(-8px);
+  box-shadow: var(--shadow-card-hover);
 }
 
 /* ==================== ANIMATIONS ==================== */
@@ -146,8 +198,8 @@ body {
 }
 
 @keyframes glow {
-  0%, 100% { box-shadow: 0 0 5px rgba(196, 30, 58, 0.2); }
-  50% { box-shadow: 0 0 20px rgba(196, 30, 58, 0.4); }
+  0%, 100% { box-shadow: 0 0 5px rgba(29,78,216,0.25); }
+  50% { box-shadow: 0 0 20px rgba(29,78,216,0.45); }
 }
 
 @keyframes slideInUp {
@@ -166,6 +218,6 @@ body {
 }
 
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
+

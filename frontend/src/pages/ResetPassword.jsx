@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
@@ -13,6 +14,12 @@ export default function ResetPassword() {
   });
 
   const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const email = location.state?.email || '';
+  const otp = location.state?.otp || '';
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -22,14 +29,58 @@ export default function ResetPassword() {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match');
+      setError('Passwords do not match');
       return;
     }
-    console.log('Reset password:', formData.password);
-    setIsSuccess(true);
+
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return;
+    }
+
+    if (!/(?=.*[A-Za-z])(?=.*\d)/.test(formData.password)) {
+      setError('Password must contain both letters and numbers');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('http://localhost:5000/api/auth/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          otp,
+          newPassword: formData.password,
+          confirmPassword: formData.confirmPassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setIsSuccess(true);
+        // Navigate to login after 3 seconds
+        setTimeout(() => {
+          navigate('/login');
+        }, 3000);
+      } else {
+        setError(data.message || 'Failed to reset password. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error:', err);
+      setError('Network error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -54,20 +105,34 @@ export default function ResetPassword() {
             >
               <div style={{ textAlign: 'center', padding: '10px' }}>
                 <div style={{ fontSize: '48px', marginBottom: '20px' }}>✅</div>
-                <h2 style={{ color: 'var(--black-soft)', marginBottom: '10px' }}>Password Reset Successful</h2>
-                <p style={{ color: 'var(--gray-600)', marginBottom: '30px' }}>
+                <h2 style={{ color: 'var(--text-primary)', marginBottom: '10px' }}>Password Reset Successful</h2>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '30px' }}>
                   Your password has been successfully reset. You can now log in with your new password.
                 </p>
-                <Link to="/login" className="btn btn-primary">
-                  Back to Login
-                </Link>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+                  Redirecting to login page...
+                </p>
               </div>
             </motion.div>
           ) : (
             <form onSubmit={handleSubmit}>
-              <p style={{ color: 'var(--gray-600)', marginBottom: '20px', fontSize: '14.5px', lineHeight: 1.6 }}>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '20px', fontSize: '14.5px', lineHeight: 1.6 }}>
                 Please enter your new password below. Make sure it's at least 8 characters long.
               </p>
+
+              {error && (
+                <div style={{
+                  backgroundColor: '#fee',
+                  border: '1px solid #fcc',
+                  color: '#c33',
+                  padding: '12px',
+                  borderRadius: '4px',
+                  marginBottom: '20px',
+                  fontSize: '14px'
+                }}>
+                  {error}
+                </div>
+              )}
 
               <div className="form-group">
                 <label className="form-label">New Password</label>
@@ -75,10 +140,11 @@ export default function ResetPassword() {
                   type={formData.showPassword ? 'text' : 'password'}
                   name="password"
                   className="form-input"
-                  placeholder="At least 8 characters"
+                  placeholder="At least 8 characters (letters + numbers)"
                   value={formData.password}
                   onChange={handleChange}
                   required
+                  disabled={isLoading}
                 />
               </div>
 
@@ -92,6 +158,7 @@ export default function ResetPassword() {
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   required
+                  disabled={isLoading}
                 />
               </div>
 
@@ -103,6 +170,7 @@ export default function ResetPassword() {
                     checked={formData.showPassword}
                     onChange={handleChange}
                     style={{ accentColor: '#C41E3A' }}
+                    disabled={isLoading}
                   />
                   Show password
                 </label>
@@ -111,13 +179,14 @@ export default function ResetPassword() {
               <button
                 type="submit"
                 className="auth-button"
+                disabled={isLoading}
               >
-                Reset Password
+                {isLoading ? 'Resetting Password...' : 'Reset Password'}
               </button>
 
               <div style={{ textAlign: 'center', marginTop: '20px' }}>
-                <Link to="/login" style={{ color: 'var(--red-primary)', textDecoration: 'none', fontSize: '14px', fontWeight: 600 }}>
-                  ← Back to Login
+                <Link to="/login" style={{ color: 'var(--primary)', textDecoration: 'none', fontSize: '14px', fontWeight: 600 }}>
+                  Back to Login
                 </Link>
               </div>
             </form>

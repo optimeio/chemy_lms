@@ -1,22 +1,21 @@
 import { motion } from 'framer-motion';
-import Navbar from "../components/Navbar";
-import Hero from "../components/Hero";
-import Features from "../components/Features";
-import Footer from "../components/Footer";
+import Navbar from '../components/Navbar';
+import Hero from '../components/Hero';
+import Features from '../components/Features';
+import Footer from '../components/Footer';
 import { Link } from 'react-router-dom';
 import '../styles/Home.css';
 
 export default function Home() {
   const values = [
-    { icon: '💡', title: 'Innovation', desc: 'Pioneering new solutions and technology.' },
-    { icon: '🌱', title: 'Sustainability', desc: 'Eco-friendly, energy-efficient initiatives.' },
-    { icon: '🎯', title: 'Precision', desc: 'Uncompromising engineering standards.' },
-    { icon: '🤝', title: 'Integrity', desc: 'Transparent business practices and operations.' },
+    { title: 'Innovation', desc: 'We build practical solutions powered by modern learning and technology.', icon: '💡' },
+    { title: 'Collaboration', desc: 'We work with institutions, industry, and learners as one team.', icon: '🤝' },
+    { title: 'Growth', desc: 'We empower students and professionals to grow skills and careers.', icon: '📈' },
   ];
 
   const cardVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.6 } },
+    hidden: { opacity: 0, y: 30 },
+    visible: { opacity: 1, y: 0 },
   };
 
   return (
@@ -63,7 +62,7 @@ export default function Home() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            Partner with <span>The SM Groups</span>
+            Partner with <span>Chemy LMS</span>
           </motion.h2>
           <motion.p
             className="cta-subtitle"

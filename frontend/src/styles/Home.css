@@ -6,7 +6,8 @@
 
 .home-values-section {
   padding: 100px 20px;
-  background: var(--off-white);
+  background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .values-header {
@@ -16,20 +17,20 @@
 
 .values-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 30px;
   max-width: 1200px;
   margin: 0 auto;
 }
 
 .value-card {
-  background: var(--white);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 40px 30px;
   text-align: center;
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+  box-shadow: var(--shadow-card);
   position: relative;
   overflow: hidden;
 }
@@ -40,16 +41,17 @@
   top: 0;
   left: 0;
   width: 100%;
-  height: 4px;
-  background: linear-gradient(90deg, var(--red-light), var(--red-primary));
+  height: 3px;
+  background: linear-gradient(90deg, rgba(29,78,216,0.06), var(--primary));
   opacity: 0;
   transition: opacity 0.3s ease;
 }
 
 .value-card:hover {
   transform: translateY(-8px);
-  border-color: rgba(196, 30, 58, 0.15);
-  box-shadow: 0 20px 40px rgba(196, 30, 58, 0.06);
+  border-color: rgba(29,78,216,0.08);
+  box-shadow: var(--shadow-card);
+  background: var(--bg-card);
 }
 
 .value-card:hover::before {
@@ -61,7 +63,7 @@
   margin-bottom: 24px;
   display: inline-block;
   padding: 16px;
-  background: rgba(196, 30, 58, 0.04);
+  background: rgba(29,78,216,0.06);
   border-radius: 50%;
   width: 80px;
   height: 80px;
@@ -70,32 +72,33 @@
 }
 
 .value-card:hover .value-icon {
-  background: rgba(196, 30, 58, 0.08);
+  background: rgba(29,78,216,0.12);
   transform: scale(1.1) rotate(5deg);
 }
 
 .value-card h3 {
+  font-family: 'Playfair Display', serif;
   font-size: 20px;
   font-weight: 700;
-  color: var(--black-soft);
+  color: var(--text-primary);
   margin-bottom: 12px;
   letter-spacing: -0.3px;
 }
 
 .value-card p {
   font-size: 14.5px;
-  color: var(--gray-600);
+  color: var(--text-secondary);
   line-height: 1.6;
 }
 
 .cta-section {
   background: 
-    radial-gradient(circle at 50% 120%, rgba(255, 45, 71, 0.15) 0%, transparent 65%),
-    linear-gradient(135deg, #3B0A11 0%, #150204 100%);
-  color: var(--white);
+    radial-gradient(circle at 50% 120%, rgba(255, 255, 255, 0.15) 0%, transparent 65%),
+    linear-gradient(135deg, rgba(29,78,216,0.06) 0%, var(--primary) 100%);
+  color: var(--text-primary);
   padding: 100px 20px;
   text-align: center;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
   position: relative;
   overflow: hidden;
 }
@@ -108,7 +111,7 @@
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent, var(--red-primary), #ff6b7a, var(--red-primary), transparent);
+  background: linear-gradient(90deg, transparent, var(--primary), #ffffff, var(--primary), transparent);
   background-size: 200% 100%;
   animation: shimmerLine 4s linear infinite;
 }
@@ -119,7 +122,7 @@
   position: absolute;
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, rgba(196, 30, 58, 0.08) 0%, rgba(139, 92, 246, 0.03) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, rgba(29,78,216,0.03) 40%, transparent 70%);
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -148,8 +151,8 @@
   right: -200px;
   bottom: -100px;
   background-image: 
-    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    linear-gradient(rgba(15, 23, 42, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.015) 1px, transparent 1px);
   background-size: 60px 60px;
   z-index: -1;
   pointer-events: none;
@@ -163,16 +166,16 @@
   position: absolute;
   width: 6px;
   height: 6px;
-  background: var(--red-primary);
+  background: var(--primary-dark);
   border-radius: 50%;
   top: -30px;
   right: 60px;
   box-shadow: 
-    -120px 40px 0 2px rgba(196, 30, 58, 0.3),
-    80px 80px 0 1px rgba(255, 107, 122, 0.25),
-    -200px -10px 0 3px rgba(139, 92, 246, 0.2),
-    200px 60px 0 1px rgba(196, 30, 58, 0.2),
-    -60px 100px 0 2px rgba(139, 92, 246, 0.15);
+    -120px 40px 0 2px rgba(15, 23, 42, 0.15),
+    80px 80px 0 1px rgba(29,78,216,0.25),
+    -200px -10px 0 3px rgba(15, 23, 42, 0.1),
+    200px 60px 0 1px rgba(19, 78, 74, 0.2),
+    -60px 100px 0 2px rgba(15, 23, 42, 0.15);
   animation: floatParticles 6s ease-in-out infinite;
   z-index: -1;
 }
@@ -183,14 +186,16 @@
 }
 
 .cta-title {
+  font-family: 'Playfair Display', serif;
   font-size: 40px;
-  font-weight: 800;
+  font-weight: 700;
   margin-bottom: 20px;
   letter-spacing: -1px;
+  color: var(--text-primary);
 }
 
 .cta-title span {
-  background: linear-gradient(135deg, var(--red-light), var(--red-primary));
+  background: linear-gradient(135deg, var(--primary-dark), var(--text-primary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -198,7 +203,7 @@
 
 .cta-subtitle {
   font-size: 18px;
-  color: var(--gray-400);
+  color: var(--text-secondary);
   margin-bottom: 40px;
   line-height: 1.6;
 }
@@ -211,13 +216,13 @@
 }
 
 .cta-buttons .btn-secondary {
-  color: var(--white);
-  border-color: var(--gray-700);
+  color: var(--text-primary);
+  border-color: var(--border-color);
 }
 
 .cta-buttons .btn-secondary:hover {
-  border-color: var(--white);
-  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--text-primary);
+  background: rgba(15, 23, 42, 0.06);
 }
 
 /* ==================== RESPONSIVE ==================== */
@@ -258,3 +263,4 @@
     gap: 12px;
   }
 }
+

@@ -3,11 +3,14 @@ import { motion } from 'framer-motion';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../state/useAuth';
 import '../styles/Auth.css';
 
 export default function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
+    role: 'Student',
     email: '',
     password: '',
   });
@@ -20,7 +23,11 @@ export default function Login() {
 
   const validateField = (name, value) => {
     let error = '';
-    if (name === 'email') {
+    if (name === 'role') {
+      if (!value) {
+        error = 'Please select a role to continue.';
+      }
+    } else if (name === 'email') {
       if (!value) {
         error = 'Email address is required.';
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
@@ -56,45 +63,25 @@ export default function Login() {
     e.preventDefault();
     setServerError('');
     
-    // Validate email & password
+    // Validate role, email, and password
+    const roleError = validateField('role', formData.role);
     const emailError = validateField('email', formData.email);
     const passwordError = validateField('password', formData.password);
     
-    if (emailError || passwordError) {
-      setErrors({ email: emailError, password: passwordError });
+    if (roleError || emailError || passwordError) {
+      setErrors({ role: roleError, email: emailError, password: passwordError });
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        setServerError(data.message || 'Invalid email or password.');
-      } else {
-        setIsSuccess(true);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        setTimeout(() => {
-          if (data.user.email === 'admin@smgroups.com' || data.user.email === 'thesmgroups@gmail.com') {
-            navigate('/admin');
-          } else {
-            navigate('/dashboard');
-          }
-        }, 1500);
-      }
+      const user = await login(formData);
+      setIsSuccess(true);
+      setTimeout(() => {
+        navigate(`/app/${user.dashboard}`);
+      }, 650);
     } catch (err) {
-      console.error('Login connection error:', err);
-      setServerError('Unable to connect to the server. Please check if the backend is running.');
+      setServerError(err.message || 'Unable to sign in. Please use your registered email and password.');
     } finally {
       setIsSubmitting(false);
     }
@@ -110,7 +97,7 @@ export default function Login() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <Link to="/" className="auth-back-link" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13.5px', color: 'var(--gray-500)', textDecoration: 'none', marginBottom: '20px', fontWeight: '600', transition: 'color 0.2s ease' }}>
+          <Link to="/" className="auth-back-link" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13.5px', color: 'var(--text-secondary)', textDecoration: 'none', marginBottom: '20px', fontWeight: '600', transition: 'color 0.2s ease' }}>
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="19" y1="12" x2="5" y2="12"></line>
               <polyline points="12 19 5 12 12 5"></polyline>
@@ -120,9 +107,7 @@ export default function Login() {
 
           <div className="auth-header">
             <h1 className="auth-title">Welcome Back</h1>
-            <p className="auth-subtitle">
-              Don't have an account? <Link to="/register">Sign up</Link>
-            </p>
+            <p className="auth-header-copy">Sign in to your account to access the learning dashboard and manage your courses.</p>
           </div>
 
           {serverError && (
@@ -139,6 +124,21 @@ export default function Login() {
 
           <form onSubmit={handleSubmit}>
             <div className="form-group">
+              <label className="form-label">Login as</label>
+              <select
+                name="role"
+                className="form-input"
+                value={formData.role}
+                onChange={handleChange}
+              >
+                <option value="Student">Student</option>
+                <option value="Trainer">Trainer</option>
+                <option value="Company">Company</option>
+              </select>
+              {errors.role && <span className="error-message">{errors.role}</span>}
+            </div>
+
+            <div className="form-group">
               <label className="form-label">Email Address</label>
               <input
                 type="email"
@@ -153,7 +153,13 @@ export default function Login() {
 
             <div className="form-group">
               <label className="form-label">Password</label>
-              <div className="password-input-wrapper">
+              <div className="input-wrapper password-input-wrapper">
+                <span className="input-icon" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                </span>
                 <input
                   type={showPassword ? 'text' : 'password'}
                   name="password"
@@ -169,12 +175,13 @@ export default function Login() {
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8-3.38 6.1-8.64 8.8-11 8.8"/>
                       <line x1="1" y1="1" x2="23" y2="23"/>
                     </svg>
                   ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                       <circle cx="12" cy="12" r="3"/>
                     </svg>
@@ -184,8 +191,8 @@ export default function Login() {
               {errors.password && <span className="error-message">{errors.password}</span>}
             </div>
 
-            <div className="form-group" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '25px' }}>
-              <Link to="/forgot-password" style={{ color: 'var(--red-primary)', textDecoration: 'none', fontSize: '14px', fontWeight: 600 }}>
+            <div className="form-group form-helper-row">
+              <Link to="/forgot-password" className="forgot-password-link">
                 Forgot password?
               </Link>
             </div>
@@ -195,10 +202,16 @@ export default function Login() {
               className="auth-button"
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Signing In...' : 'Sign In'}
+              {isSubmitting ? 'Signing In...' : `Login as ${formData.role}`}
             </button>
           </form>
-          </motion.div>
+
+          <div className="auth-footer">
+            <p>
+              Don't have an account? <Link to="/register" className="auth-footer-link">Sign Up</Link>
+            </p>
+          </div>
+        </motion.div>
       </div>
       <Footer />
     </>

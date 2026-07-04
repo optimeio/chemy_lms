@@ -11,7 +11,7 @@ export default function About() {
       credentials: 'B.E (Mechanical) · M.Tech (Energy Technology)',
       tags: ['CEO & Founder', 'Project Head', 'Team Leader', 'Trainer', 'Designer'],
       vision: 'Engineering Excellence, Accelerating Innovation',
-      bio: 'An accomplished mechanical engineer and visionary entrepreneur, Sankarganesh R founded SM Groups with a mission to transform industry standards through technological innovation. With a B.E in Mechanical Engineering and an M.Tech in Energy Technology, he brings deep technical expertise and strategic foresight to every initiative. He leads a team of 50+ professionals across 9 divisions, driving sustainable growth and pioneering solutions that place SM Groups at the forefront of Salem\'s industrial and digital transformation.',
+      bio: 'An accomplished mechanical engineer and visionary entrepreneur, Sankarganesh R founded Chemy LMS with a mission to transform industry standards through technological innovation. With a B.E in Mechanical Engineering and an M.Tech in Energy Technology, he brings deep technical expertise and strategic foresight to every initiative. He leads a team of 50+ professionals across 9 divisions, driving sustainable growth and pioneering solutions that place Chemy LMS at the forefront of Salem\'s industrial and digital transformation.',
       image: '/sankarganesh.png'
     },
     {
@@ -20,8 +20,8 @@ export default function About() {
       credentials: 'B.Com · M.Com',
       tags: ['Managing Director', 'Brand Management', 'Operations', 'Business Strategy'],
       vision: 'Innovation, Sustainability & Excellence',
-      bio: 'A commerce-driven visionary and strategic leader, Ganga P oversees SM Groups\' day-to-day operations, brand positioning, and long-term strategic direction. Holding a B.Com and M.Com, she brings a sharp business acumen and deep understanding of market dynamics to every decision. Under her leadership, SM Groups has significantly strengthened its brand presence across Tamil Nadu, streamlined operations for efficiency, and built scalable systems that support the group\'s ambitious growth roadmap across all nine divisions.',
-      image: 'https://www.thesmgroups.com/assets/ganga.jpg'
+      bio: 'A commerce-driven visionary and strategic leader, Ganga P oversees Chemy LMS\' day-to-day operations, brand positioning, and long-term strategic direction. Holding a B.Com and M.Com, she brings a sharp business acumen and deep understanding of market dynamics to every decision. Under her leadership, Chemy LMS has significantly strengthened its brand presence across Tamil Nadu, streamlined operations for efficiency, and built scalable systems that support the platform\'s ambitious growth roadmap across all nine divisions.',
+      image: '/ganga.jpg'
     }
   ];
 
@@ -33,7 +33,7 @@ export default function About() {
   ];
 
   const timeline = [
-    { year: '2020', desc: 'SM Groups founded by Sankarganesh R with a vision for engineering innovation' },
+    { year: '2020', desc: 'Chemy LMS founded by Sankarganesh R with a vision for engineering innovation' },
     { year: '2022', desc: 'Expanded services across 9 core industrial and digital divisions' },
     { year: '2024', desc: 'Established regional headquarters in Fairlands, Salem' },
     { year: '2026', desc: 'Pioneering sustainable energy and IT integration in Tamil Nadu' },
@@ -61,7 +61,7 @@ export default function About() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <h1>About <span>The SM Groups</span></h1>
+            <h1>About <span>Chemy LMS</span></h1>
             <p>Engineering Excellence, Accelerating Innovation across Industrial & Digital Frontiers</p>
           </motion.div>
         </div>
@@ -120,7 +120,7 @@ export default function About() {
           <section className="exec-section">
             <div className="team-header">
               <h2 className="section-title">Executive Leadership</h2>
-              <p className="section-subtitle">The driving force behind The SM Groups' success</p>
+              <p className="section-subtitle">The driving force behind Chemy LMS' success</p>
             </div>
 
             <div className="exec-grid">

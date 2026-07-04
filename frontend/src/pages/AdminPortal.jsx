@@ -123,16 +123,6 @@ export default function AdminPortal() {
   const [courseModal, setCourseModal] = useState(null);
   const [deleteCourseModal, setDeleteCourseModal] = useState(null);
 
-  useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    if (!user || (user.email !== 'admin@smgroups.com' && user.email !== 'thesmgroups@gmail.com')) {
-      navigate('/login');
-      return;
-    }
-    fetchStudents();
-    fetchCourses();
-  }, [navigate]);
-
   const fetchCourses = async () => {
     try {
       const res = await fetch('/api/courses');
@@ -156,6 +146,20 @@ export default function AdminPortal() {
       console.error('Failed to fetch students', err);
     }
   };
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!user || (user.email !== 'admin@chemylms.com' && user.email !== 'chemylms@gmail.com')) {
+      navigate('/login');
+      return;
+    }
+
+    const loadAdminData = async () => {
+      await Promise.all([fetchStudents(), fetchCourses()]);
+    };
+
+    void loadAdminData();
+  }, [navigate]);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -415,7 +419,7 @@ export default function AdminPortal() {
                   <td>
                     {(s.assignedCourses && s.assignedCourses.length > 0)
                       ? <span className="admin-badge green">{s.assignedCourses.length} course{s.assignedCourses.length > 1 ? 's' : ''}</span>
-                      : <span style={{ color: '#94a3b8', fontSize: '12px' }}>None</span>
+                      : <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>None</span>
                     }
                   </td>
                   <td>
@@ -528,7 +532,7 @@ export default function AdminPortal() {
             {drillLevel === 'colleges' && (
               <>
                 <div className="admin-toolbar">
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
                     All Colleges ({uniqueColleges.length})
                   </div>
                   <button
@@ -585,7 +589,7 @@ export default function AdminPortal() {
                   <span className="breadcrumb-current">{selectedCollege}</span>
                 </div>
                 <div className="admin-toolbar">
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
                     Departments in {selectedCollege} ({uniqueDepts.length})
                   </div>
                   <button
@@ -649,13 +653,13 @@ export default function AdminPortal() {
         return (
           <>
             <div className="admin-toolbar" style={{ gap: '10px' }}>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>
                 Available Courses ({courses.length})
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button
                   className="admin-csv-btn"
-                  style={{ backgroundColor: 'var(--red-primary)', color: '#fff', border: 'none' }}
+                  style={{ backgroundColor: 'var(--primary)', color: 'var(--white)', border: 'none' }}
                   onClick={() => setCourseModal({ mode: 'create', title: '', content: '', image: '', imageFile: '', ppt: '', pptFile: '', video: '', videoFile: '' })}
                 >
                   + Create Course
@@ -700,17 +704,17 @@ export default function AdminPortal() {
                         <div className="course-card-icon">{Icons.Courses}</div>
                       )}
                       <h4>{course.title}</h4>
-                      <p className="course-card-desc" style={{ fontSize: '13px', color: '#64748b', margin: '8px 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      <p className="course-card-desc" style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '8px 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                         {course.content}
                       </p>
-                      <p style={{ fontWeight: 600, fontSize: '12.5px', color: 'var(--red-primary)' }}>
+                      <p style={{ fontWeight: 600, fontSize: '12.5px', color: 'var(--primary)' }}>
                         {count} student{count !== 1 ? 's' : ''} enrolled
                       </p>
                       <div className="course-card-badges" style={{ display: 'flex', gap: '5px', margin: '8px 0', flexWrap: 'wrap' }}>
                         {course.ppt && <span className="admin-badge green" style={{ fontSize: '11px' }}>Slides</span>}
                         {course.video && <span className="admin-badge blue" style={{ fontSize: '11px' }}>Video</span>}
                       </div>
-                      <div className="course-card-actions" style={{ display: 'flex', gap: '6px', width: '100%', marginTop: '12px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                      <div className="course-card-actions" style={{ display: 'flex', gap: '6px', width: '100%', marginTop: '12px', borderTop: '1px solid var(--bg-section)', paddingTop: '10px' }}>
                         <button className="action-btn edit" style={{ flex: 1, padding: '6px' }} onClick={() => setCourseModal({ mode: 'edit', ...course })}>{Icons.Edit} Edit</button>
                         <button className="action-btn delete" style={{ flex: 1, padding: '6px' }} onClick={() => setDeleteCourseModal(course)}>{Icons.Trash} Delete</button>
                       </div>
@@ -740,7 +744,7 @@ export default function AdminPortal() {
         return (
           <>
             <div className="admin-toolbar">
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>Live Classes</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>Live Classes</div>
               <button className="admin-csv-btn" onClick={() => downloadCSV([{ Status: 'No live classes scheduled' }], 'live_classes.csv')}>
                 {Icons.Download} Export CSV
               </button>
@@ -759,7 +763,7 @@ export default function AdminPortal() {
         return (
           <>
             <div className="admin-toolbar">
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>Assignments & Quizzes</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>Assignments & Quizzes</div>
               <button className="admin-csv-btn" onClick={() => downloadCSV([{ Status: 'No assignments created' }], 'assignments.csv')}>
                 {Icons.Download} Export CSV
               </button>
@@ -778,7 +782,7 @@ export default function AdminPortal() {
         return (
           <>
             <div className="admin-toolbar">
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>Certificates</div>
+              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>Certificates</div>
               <button className="admin-csv-btn" onClick={() => downloadCSV([{ Status: 'No certificates issued' }], 'certificates.csv')}>
                 {Icons.Download} Export CSV
               </button>
@@ -799,20 +803,20 @@ export default function AdminPortal() {
             <h3>Admin Profile</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px', marginTop: '10px' }}>
               <div>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>Full Name</div>
-                <div style={{ fontSize: '15px', fontWeight: 600, color: '#0f172a' }}>Admin</div>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>Full Name</div>
+                <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>Admin</div>
               </div>
               <div>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>Email</div>
-                <div style={{ fontSize: '15px', fontWeight: 600, color: '#0f172a' }}>admin@smgroups.com</div>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>Email</div>
+                <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>admin@chemylms.com</div>
               </div>
               <div>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>Role</div>
-                <div style={{ fontSize: '15px', fontWeight: 600, color: '#0f172a' }}>Super Administrator</div>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>Role</div>
+                <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>Super Administrator</div>
               </div>
               <div>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>Organization</div>
-                <div style={{ fontSize: '15px', fontWeight: 600, color: '#0f172a' }}>The SM Groups</div>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '4px' }}>Organization</div>
+                <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>Chemy LMS</div>
               </div>
             </div>
           </div>
@@ -835,7 +839,7 @@ export default function AdminPortal() {
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
           <div className="admin-logo-text">
-            <h2>SM GROUPS</h2>
+            <h2>CHEMY LMS</h2>
             <p>admin portal</p>
           </div>
         </div>
@@ -891,7 +895,7 @@ export default function AdminPortal() {
             </div>
           </div>
             <div className="admin-user-avatar" title="Admin">A</div>
-            <a href="mailto:thesmgroups@gmail.com?subject=Admin%20Login&body=Password%20-n%20TSMGPVT@2026" className="admin-contact-mail" style={{ marginLeft: '16px', color: '#C41E3A', textDecoration: 'none', fontWeight: '600' }}>Contact Admin</a>
+            <a href="mailto:chemylms@gmail.com?subject=Admin%20Login&body=Password%20-n%20CHEMYLMS@2026" className="admin-contact-mail" style={{ marginLeft: '16px', color: '#C41E3A', textDecoration: 'none', fontWeight: '600' }}>Contact Admin</a>
         </header>
 
         {renderContent()}
@@ -961,7 +965,7 @@ export default function AdminPortal() {
               <div className="delete-warn-icon">{Icons.Warning}</div>
               <h2 style={{ textAlign: 'center', marginBottom: '10px' }}>Delete Student?</h2>
               <p>Are you sure you want to remove <span className="delete-name">{deleteModal.fullName}</span>?</p>
-              <p style={{ fontSize: '12px', color: '#94a3b8' }}>This action cannot be undone.</p>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>This action cannot be undone.</p>
             </div>
             <div className="modal-actions" style={{ justifyContent: 'center' }}>
               <button className="modal-btn cancel" onClick={() => setDeleteModal(null)}>Cancel</button>
@@ -976,7 +980,7 @@ export default function AdminPortal() {
         <div className="admin-modal-overlay" onClick={() => setAssignModal(null)}>
           <div className="admin-modal" onClick={e => e.stopPropagation()}>
             <h2>Assign Courses to {assignModal.fullName}</h2>
-            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '18px' }}>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '18px' }}>
               Select the courses to assign. Uncheck to remove.
             </p>
             <div className="course-checklist">
@@ -1013,7 +1017,7 @@ export default function AdminPortal() {
                 <input
                   type="text"
                   placeholder="e.g. Embedded Systems"
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
                   value={courseModal.title || ''}
                   onChange={e => setCourseModal({ ...courseModal, title: e.target.value })}
                 />
@@ -1022,7 +1026,7 @@ export default function AdminPortal() {
                 <label style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Course Content / Description *</label>
                 <textarea
                   placeholder="Enter course syllabus or details..."
-                  style={{ width: '100%', minHeight: '100px', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', resize: 'vertical', fontFamily: 'inherit' }}
+                  style={{ width: '100%', minHeight: '100px', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)', resize: 'vertical', fontFamily: 'inherit' }}
                   value={courseModal.content || ''}
                   onChange={e => setCourseModal({ ...courseModal, content: e.target.value })}
                 />
@@ -1034,7 +1038,7 @@ export default function AdminPortal() {
                   accept="image/*"
                   onChange={e => handleFileChange(e, 'image')}
                 />
-                {courseModal.imageFile && <span style={{ fontSize: '12px', color: '#64748b' }}>Selected: {courseModal.imageFile}</span>}
+                {courseModal.imageFile && <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Selected: {courseModal.imageFile}</span>}
               </div>
               <div className="modal-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>PPT Presentation (Upload)</label>
@@ -1043,7 +1047,7 @@ export default function AdminPortal() {
                   accept=".ppt,.pptx"
                   onChange={e => handleFileChange(e, 'ppt')}
                 />
-                {courseModal.pptFile && <span style={{ fontSize: '12px', color: '#64748b' }}>Selected: {courseModal.pptFile}</span>}
+                {courseModal.pptFile && <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Selected: {courseModal.pptFile}</span>}
               </div>
               <div className="modal-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Video File (Upload)</label>
@@ -1052,7 +1056,7 @@ export default function AdminPortal() {
                   accept="video/*"
                   onChange={e => handleFileChange(e, 'video')}
                 />
-                {courseModal.videoFile && <span style={{ fontSize: '12px', color: '#64748b' }}>Selected: {courseModal.videoFile}</span>}
+                {courseModal.videoFile && <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Selected: {courseModal.videoFile}</span>}
               </div>
             </div>
             <div className="modal-actions" style={{ marginTop: '20px' }}>
@@ -1073,7 +1077,7 @@ export default function AdminPortal() {
               <div className="delete-warn-icon">{Icons.Warning}</div>
               <h2 style={{ textAlign: 'center', marginBottom: '10px' }}>Delete Course?</h2>
               <p>Are you sure you want to delete <span className="delete-name">{deleteCourseModal.title}</span>?</p>
-              <p style={{ fontSize: '12px', color: '#94a3b8' }}>This will remove the course and its files permanently.</p>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>This will remove the course and its files permanently.</p>
             </div>
             <div className="modal-actions" style={{ justifyContent: 'center' }}>
               <button className="modal-btn cancel" onClick={() => setDeleteCourseModal(null)}>Cancel</button>

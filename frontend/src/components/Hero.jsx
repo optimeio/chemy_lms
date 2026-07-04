@@ -27,11 +27,11 @@ export default function Hero() {
         animate="visible"
       >
         <motion.h1 className="hero-title" variants={itemVariants}>
-          <span>The SM Groups</span> <br /> Engineering Excellence
+          <span>Chemy LMS</span> <br /> Learning Excellence
         </motion.h1>
-
+        
         <motion.p className="hero-subtitle" variants={itemVariants}>
-          The SM Groups is a pioneering multi-divisional conglomerate driving sustainable growth, state-of-the-art engineering solutions, and digital transformation across Tamil Nadu.
+          Chemy LMS is a pioneering learning management system driving professional growth, state-of-the-art technical education, and interactive course management.
         </motion.p>
 
         <motion.div className="hero-buttons" variants={itemVariants}>

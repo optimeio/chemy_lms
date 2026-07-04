@@ -15,10 +15,6 @@ export default function Footer() {
       links: ['About Us', 'Careers', 'Blog', 'Press']
     },
     {
-      title: 'Product',
-      links: ['Features', 'Pricing', 'Security', 'Updates']
-    },
-    {
       title: 'Support',
       links: ['Help Center', 'Contact', 'FAQ', 'Community']
     }
@@ -41,10 +37,10 @@ export default function Footer() {
             viewport={{ once: true }}
           >
             <div className="footer-logo">
-              <img src="/logo.png" alt="The SM Groups Logo" style={{ height: '48px', width: 'auto', objectFit: 'contain' }} />
+              <img src="/logo.png" alt="Chemy LMS Logo" style={{ height: '48px', width: 'auto', objectFit: 'contain' }} />
             </div>
             <p className="footer-description">
-              Engineering Excellence, Accelerating Innovation across our industrial and digital solutions.
+              Learning Excellence, Accelerating Innovation across our online courses and interactive tools.
             </p>
           </motion.div>
 
@@ -71,13 +67,9 @@ export default function Footer() {
 
         <div className="footer-bottom">
           <div className="footer-copyright">
-            <p>&copy; 2026 The SM Groups. All rights reserved.</p>
+            <p>&copy; 2026 Chemy LMS. All rights reserved.</p>
           </div>
-          <div className="footer-links-bottom">
-            <a href="#">Privacy Policy</a>
-            <a href="#">Terms of Service</a>
-            <a href="#">Cookie Settings</a>
-          </div>
+          <div className="footer-links-bottom"></div>
         </div>
       </div>
     </footer>
