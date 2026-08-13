@@ -8,6 +8,8 @@ const net = require('net');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
+const tnskillService = require('./services/tnskillService');
+
 const app = express();
 const DEFAULT_PORT = parseInt(process.env.PORT, 10) || 5000;
 const MAX_PORT_ATTEMPTS = 10;
@@ -20,10 +22,10 @@ app.use(cors({
   origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-client-key', 'x-client-secret'],
 }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ limit: '500mb', extended: true }));
 
 // ============ OTP & Password Reset Configuration ============
 // Store OTPs in memory (expires after 10 minutes)
@@ -34,20 +36,24 @@ const otpStorage = new Map();
 const emailTransporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: process.env.EMAIL_USER || 'your-email@gmail.com',
-    pass: process.env.EMAIL_PASSWORD || 'your-app-password', // Use Gmail App Password
+    user: process.env.SMTP_USER || 'your-email@gmail.com',
+    pass: process.env.SMTP_PASS || 'your-app-password', // Use Gmail App Password
   },
 });
 
-// Verify email configuration
-emailTransporter.verify((error, success) => {
-  if (error) {
-    console.warn('⚠️  Email service configuration issue:', error.message);
-    console.log('   Password reset emails will not be sent. Configure EMAIL_USER and EMAIL_PASSWORD in .env');
-  } else {
-    console.log('✅ Email service is ready');
-  }
-});
+// Verify email configuration only if credentials exist
+if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+  emailTransporter.verify((error, success) => {
+    if (error) {
+      console.warn('⚠️  Email service configuration issue:', error.message);
+      console.log('   Password reset emails will not be sent. Configure SMTP_USER and SMTP_PASS in .env');
+    } else {
+      console.log('✅ Email service is ready');
+    }
+  });
+} else {
+  console.log('ℹ️  SMTP credentials not found in .env. Password reset emails will be skipped.');
+}
 
 // Generate OTP
 const generateOTP = () => {
@@ -93,23 +99,24 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 }
 app.use('/uploads', express.static(UPLOADS_DIR));
 
+const multer = require('multer');
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: (req, file, cb) => {
+    const filename = `${Date.now()}_${file.originalname.replace(/\s+/g, '_')}`;
+    cb(null, filename);
+  }
+});
+const upload = multer({ storage });
+
 // Fallback data file setup
 const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const COURSES_FILE = path.join(DATA_DIR, 'courses.json');
 
-const DEFAULT_COURSES = [
-  { id: '1', title: 'Embedded Systems', content: 'Learn the fundamentals of Embedded Systems, microcontrollers, assembly, and C programming for hardware interfaces.', image: '', ppt: '', pptName: '', video: '', videoName: '' },
-  { id: '2', title: 'Electric Vehicles', content: 'Explore Electric Vehicle powertrain, battery management systems, motor control, and EV architecture.', image: '', ppt: '', pptName: '', video: '', videoName: '' },
-  { id: '3', title: 'MERN Stack Development', content: 'Master MongoDB, Express.js, React, and Node.js to build modern, full-stack web applications.', image: '', ppt: '', pptName: '', video: '', videoName: '' },
-  { id: '4', title: 'IoT & Sensor Networks', content: 'Build smart connected devices using sensor technology, wireless protocols, and cloud platforms.', image: '', ppt: '', pptName: '', video: '', videoName: '' },
-  { id: '5', title: 'Python for Data Science', content: 'Learn core Python concepts, data analysis with NumPy/Pandas, and visualization tools.', image: '', ppt: '', pptName: '', video: '', videoName: '' },
-  { id: '6', title: 'Machine Learning Fundamentals', content: 'Introduction to supervised and unsupervised machine learning algorithms, training models, and validation.', image: '', ppt: '', pptName: '', video: '', videoName: '' },
-  { id: '7', title: 'Cloud Computing (AWS)', content: 'Deploy and maintain scalable web architectures on Amazon Web Services cloud infrastructure.', image: '', ppt: '', pptName: '', video: '', videoName: '' },
-  { id: '8', title: 'Cybersecurity Essentials', content: 'Protect networks and systems against digital threats, understand cryptography and secure practices.', image: '', ppt: '', pptName: '', video: '', videoName: '' },
-  { id: '9', title: 'Digital Marketing', content: 'Strategies for online marketing, search engine optimization, content creation, and analytics tools.', image: '', ppt: '', pptName: '', video: '', videoName: '' },
-  { id: '10', title: 'AutoCAD & Mechanical Design', content: 'Create precise 2D drafting and 3D modeling specifications for mechanical parts and assemblies.', image: '', ppt: '', pptName: '', video: '', videoName: '' }
-];
+const DEFAULT_COURSES = [];
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -161,7 +168,17 @@ const userSchema = new mongoose.Schema({
   district: { type: String, required: true },
   college: { type: String, required: true },
   department: { type: String, required: true },
+  profileImage: { type: String, default: '' },
   assignedCourses: { type: [String], default: [] },
+  progress: {
+    type: [{
+      courseId: String,
+      watchedVideos: { type: [String], default: [] },
+      midCourseQuizCompleted: { type: Boolean, default: false },
+      finalQuizCompleted: { type: Boolean, default: false }
+    }],
+    default: []
+  },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -174,12 +191,24 @@ try {
 
 const courseSchema = new mongoose.Schema({
   title: { type: String, required: true },
+  courseCode: { type: String },
+  trainerName: { type: String },
+  category: { type: String },
+  status: { type: String, enum: ['draft', 'published'], default: 'published' },
   image: { type: String }, // path to static image file
   content: { type: String, required: true },
-  ppt: { type: String }, // path to static PPT file
-  pptName: { type: String }, // original file name
-  video: { type: String }, // path to static video file
-  videoName: { type: String }, // original file name
+  ppts: [{ url: String, name: String }],
+  videos: [{ url: String, name: String }],
+  midCourseQuiz: [{
+    question: String,
+    options: [String],
+    correctOptionIndex: Number
+  }],
+  finalAssessmentQuiz: [{
+    question: String,
+    options: [String],
+    correctOptionIndex: Number
+  }],
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -340,7 +369,7 @@ app.post('/api/auth/register', async (req, res) => {
       }
 
       // Create new user in Mongo
-      const newUser = new User({ fullName, email, phone, password, gender, year, district, college, department, role: 'Student', dashboard: 'a', assignedCourses: [] });
+      const newUser = new User({ fullName, email, phone, password, gender, year, district, college, department, role: 'Student', dashboard: 'a', assignedCourses: [], progress: [] });
       await newUser.save();
       return res.status(201).json({
         success: true,
@@ -366,6 +395,7 @@ app.post('/api/auth/register', async (req, res) => {
         role: 'Student',
         dashboard: 'a',
         assignedCourses: [],
+        progress: [],
         createdAt: new Date(),
       };
       saveLocalUser(newUser);
@@ -384,16 +414,19 @@ app.post('/api/auth/register', async (req, res) => {
 
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const rawEmail = req.body.email;
+    const email = rawEmail ? rawEmail.trim() : undefined;
+    const { password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Email and password are required.' });
+      return res.json({ success: false, message: 'Email and password are required.' });
     }
 
     // Hardcoded admin account
     if (
       (email === 'admin@chemylms.com' && password === 'admin123') ||
-      (email === 'chemylms@gmail.com' && (password === 'CHEMYLMS@2026' || password === '-n CHEMYLMS@2026'))
+      (email === 'chemylms@gmail.com' && (password === 'CHEMYLMS@2026' || password === '-n CHEMYLMS@2026')) ||
+      (email === 'thesmgroups@gmail.com' && password === 'TSMGPVT@2026')
     ) {
       return res.json({
         success: true,
@@ -402,42 +435,33 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
 
+    let user = null;
     if (isMongoConnected) {
-      const user = await User.findOne({ email });
-      if (!user || user.password !== password) { // Note: Simple password matching for demo purposes
-        return res.status(400).json({ success: false, message: 'Invalid email or password.' });
-      }
-      return res.json({
-        success: true,
-        message: 'Login successful!',
-        user: {
-          fullName: user.fullName,
-          email: user.email,
-          college: user.college,
-          department: user.department,
-          role: user.role || 'Student',
-          dashboard: user.dashboard || 'a',
-        },
-      });
-    } else {
-      const localUsers = getLocalUsers();
-      const user = localUsers.find(u => u.email === email && u.password === password);
-      if (!user) {
-        return res.status(400).json({ success: false, message: 'Invalid email or password.' });
-      }
-      return res.json({
-        success: true,
-        message: 'Login successful!',
-        user: {
-          fullName: user.fullName,
-          email: user.email,
-          college: user.college,
-          department: user.department,
-          role: user.role || 'Student',
-          dashboard: user.dashboard || 'a',
-        },
-      });
+      user = await User.findOne({ email });
     }
+    
+    // Fallback to local users if not found in Mongo
+    if (!user) {
+      const localUsers = getLocalUsers();
+      user = localUsers.find(u => u.email === email);
+    }
+
+    if (!user || user.password !== password) {
+      return res.json({ success: false, message: 'Invalid email or password.' });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Login successful!',
+      user: {
+        fullName: user.fullName,
+        email: user.email,
+        college: user.college,
+        department: user.department,
+        role: user.role || 'Student',
+        dashboard: user.dashboard || 'a',
+      },
+    });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ success: false, message: 'An internal server error occurred.' });
@@ -485,15 +509,13 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     const emailSent = await sendOTPEmail(email, otp);
 
     if (!emailSent) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to send OTP email. Please try again later or contact support.',
-      });
+      console.log(`Email failed to send. Fallback OTP for ${email}: ${otp}`);
     }
 
     res.json({
       success: true,
-      message: 'OTP has been sent to your email address.',
+      message: 'OTP processed. For testing, use the code provided.',
+      otp: otp // Included for testing so it's always received
     });
   } catch (err) {
     console.error('Forgot password error:', err);
@@ -655,8 +677,31 @@ const deleteUploadedFile = (fileUrl) => {
   }
 };
 
+// API Key Authentication Middleware
+const apiKeyAuth = (req, res, next) => {
+  const clientKey = req.headers['x-client-key'];
+  const clientSecret = req.headers['x-client-secret'];
+
+  if (clientKey === process.env.CLIENT_KEY && clientSecret === process.env.CLIENT_SECRET) {
+    next();
+  } else {
+    res.status(401).json({ success: false, message: 'Unauthorized: Invalid API Keys' });
+  }
+};
+
+// TNSkill Test Endpoint
+app.get('/api/tnskill/test', apiKeyAuth, async (req, res) => {
+  try {
+    // This will automatically fetch the token if missing, or refresh if expired
+    const token = await tnskillService.authenticate();
+    res.json({ success: true, message: 'TNSkill Authentication successful', token });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'TNSkill Authentication failed', error: error.message });
+  }
+});
+
 // Course Endpoints
-app.get('/api/courses', async (req, res) => {
+app.get('/api/courses', apiKeyAuth, async (req, res) => {
   try {
     if (isMongoConnected) {
       const courses = await Course.find({}).sort({ createdAt: -1 });
@@ -671,25 +716,49 @@ app.get('/api/courses', async (req, res) => {
   }
 });
 
-app.post('/api/admin/courses', async (req, res) => {
+app.post('/api/admin/courses', apiKeyAuth, upload.any(), async (req, res) => {
   try {
-    const { title, image, imageFile, content, ppt, pptFile, video, videoFile } = req.body;
+    const { title, courseCode, trainerName, category, status, image, content, ppts, videos, midCourseQuiz, finalAssessmentQuiz } = req.body;
     if (!title || !content) {
       return res.status(400).json({ success: false, message: 'Title and content are required.' });
     }
 
-    const imagePath = saveUploadedFile(image, imageFile);
-    const pptPath = saveUploadedFile(ppt, pptFile);
-    const videoPath = saveUploadedFile(video, videoFile);
+    let imagePath = image || '';
+    const imageFile = req.files && req.files.find(f => f.fieldname === 'imageFile');
+    if (imageFile) {
+      imagePath = `/uploads/${imageFile.filename}`;
+    }
+
+    const pptsArray = ppts ? JSON.parse(ppts) : [];
+    const processedPpts = pptsArray.slice(0, 12).map((p, i) => {
+      if (p.isRawFile) {
+        const file = req.files && req.files.find(f => f.fieldname === `pptFile_${i}`);
+        return file ? { url: `/uploads/${file.filename}`, name: p.name } : null;
+      }
+      return { url: p.url, name: p.name };
+    }).filter(p => p && p.url);
+
+    const videosArray = videos ? JSON.parse(videos) : [];
+    const processedVideos = videosArray.slice(0, 12).map((v, i) => {
+      if (v.isRawFile) {
+        const file = req.files && req.files.find(f => f.fieldname === `videoFile_${i}`);
+        return file ? { url: `/uploads/${file.filename}`, name: v.name } : null;
+      }
+      return { url: v.url, name: v.name };
+    }).filter(v => v && v.url);
 
     const courseData = {
       title,
-      image: imagePath || '',
+      courseCode,
+      trainerName,
+      category,
+      status: status || 'published',
+      image: imagePath,
       content,
-      ppt: pptPath || '',
-      pptName: pptFile || '',
-      video: videoPath || '',
-      videoName: videoFile || '',
+      ppts: processedPpts,
+      videos: processedVideos,
+      midCourseQuiz: midCourseQuiz ? JSON.parse(midCourseQuiz) : [],
+      finalAssessmentQuiz: finalAssessmentQuiz ? JSON.parse(finalAssessmentQuiz) : [],
       createdAt: new Date()
     };
 
@@ -711,14 +780,38 @@ app.post('/api/admin/courses', async (req, res) => {
   }
 });
 
-app.put('/api/admin/courses/:id', async (req, res) => {
+app.put('/api/admin/courses/:id', apiKeyAuth, upload.any(), async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, image, imageFile, content, ppt, pptFile, video, videoFile } = req.body;
+    const { title, courseCode, trainerName, category, status, image, content, ppts, videos, midCourseQuiz, finalAssessmentQuiz } = req.body;
 
     if (!title || !content) {
       return res.status(400).json({ success: false, message: 'Title and content are required.' });
     }
+
+    let imagePath = image || '';
+    const imageFile = req.files && req.files.find(f => f.fieldname === 'imageFile');
+    if (imageFile) {
+      imagePath = `/uploads/${imageFile.filename}`;
+    }
+
+    const pptsArray = ppts ? JSON.parse(ppts) : [];
+    const processedPpts = pptsArray.slice(0, 12).map((p, i) => {
+      if (p.isRawFile) {
+        const file = req.files && req.files.find(f => f.fieldname === `pptFile_${i}`);
+        return file ? { url: `/uploads/${file.filename}`, name: p.name } : null;
+      }
+      return { url: p.url, name: p.name };
+    }).filter(p => p && p.url);
+
+    const videosArray = videos ? JSON.parse(videos) : [];
+    const processedVideos = videosArray.slice(0, 12).map((v, i) => {
+      if (v.isRawFile) {
+        const file = req.files && req.files.find(f => f.fieldname === `videoFile_${i}`);
+        return file ? { url: `/uploads/${file.filename}`, name: v.name } : null;
+      }
+      return { url: v.url, name: v.name };
+    }).filter(v => v && v.url);
 
     if (isMongoConnected) {
       const existing = await Course.findById(id);
@@ -726,28 +819,21 @@ app.put('/api/admin/courses/:id', async (req, res) => {
         return res.status(404).json({ success: false, message: 'Course not found.' });
       }
 
-      const imagePath = image && image.startsWith('/uploads/') ? image : saveUploadedFile(image, imageFile);
-      if (image && !image.startsWith('/uploads/') && existing.image) {
+      if (imagePath && imagePath !== existing.image && existing.image) {
         deleteUploadedFile(existing.image);
       }
 
-      const pptPath = ppt && ppt.startsWith('/uploads/') ? ppt : saveUploadedFile(ppt, pptFile);
-      if (ppt && !ppt.startsWith('/uploads/') && existing.ppt) {
-        deleteUploadedFile(existing.ppt);
-      }
-
-      const videoPath = video && video.startsWith('/uploads/') ? video : saveUploadedFile(video, videoFile);
-      if (video && !video.startsWith('/uploads/') && existing.video) {
-        deleteUploadedFile(existing.video);
-      }
-
       existing.title = title;
+      existing.courseCode = courseCode;
+      existing.trainerName = trainerName;
+      existing.category = category;
+      existing.status = status || existing.status;
       existing.image = imagePath || existing.image;
       existing.content = content;
-      existing.ppt = pptPath || existing.ppt;
-      existing.pptName = pptFile || existing.pptName;
-      existing.video = videoPath || existing.video;
-      existing.videoName = videoFile || existing.videoName;
+      existing.ppts = processedPpts;
+      existing.videos = processedVideos;
+      existing.midCourseQuiz = midCourseQuiz ? JSON.parse(midCourseQuiz) : [];
+      existing.finalAssessmentQuiz = finalAssessmentQuiz ? JSON.parse(finalAssessmentQuiz) : [];
 
       await existing.save();
       return res.json({ success: true, message: 'Course updated successfully!', course: existing });
@@ -760,30 +846,23 @@ app.put('/api/admin/courses/:id', async (req, res) => {
 
       const existing = localCourses[idx];
 
-      const imagePath = image && image.startsWith('/uploads/') ? image : saveUploadedFile(image, imageFile);
-      if (image && !image.startsWith('/uploads/') && existing.image) {
+      if (imagePath && imagePath !== existing.image && existing.image) {
         deleteUploadedFile(existing.image);
-      }
-
-      const pptPath = ppt && ppt.startsWith('/uploads/') ? ppt : saveUploadedFile(ppt, pptFile);
-      if (ppt && !ppt.startsWith('/uploads/') && existing.ppt) {
-        deleteUploadedFile(existing.ppt);
-      }
-
-      const videoPath = video && video.startsWith('/uploads/') ? video : saveUploadedFile(video, videoFile);
-      if (video && !video.startsWith('/uploads/') && existing.video) {
-        deleteUploadedFile(existing.video);
       }
 
       localCourses[idx] = {
         ...existing,
         title,
+        courseCode,
+        trainerName,
+        category,
+        status: status || existing.status,
         image: imagePath || existing.image,
         content,
-        ppt: pptPath || existing.ppt,
-        pptName: pptFile || existing.pptName,
-        video: videoPath || existing.video,
-        videoName: videoFile || existing.videoName
+        ppts: processedPpts,
+        videos: processedVideos,
+        midCourseQuiz: midCourseQuiz ? JSON.parse(midCourseQuiz) : [],
+        finalAssessmentQuiz: finalAssessmentQuiz ? JSON.parse(finalAssessmentQuiz) : []
       };
 
       saveLocalCourses(localCourses);
@@ -795,7 +874,7 @@ app.put('/api/admin/courses/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/admin/courses/:id', async (req, res) => {
+app.delete('/api/admin/courses/:id', apiKeyAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -952,6 +1031,150 @@ app.post('/api/admin/users/:email/assign', async (req, res) => {
   }
 });
 
+app.put('/api/users/:email/profile', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const { fullName, college, department, year, profileImage } = req.body;
+    
+    if (isMongoConnected) {
+      const updated = await User.findOneAndUpdate(
+        { email },
+        { fullName, college, department, year, profileImage },
+        { new: true }
+      );
+      if (!updated) return res.status(404).json({ success: false, message: 'Student not found.' });
+      return res.json({ success: true, message: 'Profile updated successfully!', user: updated });
+    } else {
+      const localUsers = getLocalUsers();
+      const index = localUsers.findIndex(u => u.email === email);
+      if (index === -1) return res.status(404).json({ success: false, message: 'Student not found.' });
+      
+      localUsers[index] = { ...localUsers[index], fullName, college, department, year, profileImage };
+      fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
+      return res.json({ success: true, message: 'Profile updated locally!', user: localUsers[index] });
+    }
+  } catch (err) {
+    console.error('Error updating profile:', err);
+    res.status(500).json({ success: false, message: 'Server error updating profile.' });
+  }
+});
+
+app.post('/api/subscriptions/course', async (req, res) => {
+  try {
+    const { user_id, course_id } = req.body;
+    
+    if (!user_id || !course_id) {
+      return res.json({ subscription_registration_status: false });
+    }
+
+    const subscription_reference_id = `SUB_${Date.now()}_${Math.random().toString(36).substring(2,9)}`;
+
+    if (isMongoConnected) {
+      let user = null;
+      if (user_id.includes('@')) {
+        user = await User.findOne({ email: user_id });
+      } else {
+        try {
+          user = await User.findById(user_id);
+        } catch(e) {}
+      }
+
+      if (!user) {
+        return res.json({ subscription_registration_status: false });
+      }
+
+      if (!user.assignedCourses.includes(course_id)) {
+        user.assignedCourses.push(course_id);
+        await user.save();
+      }
+      return res.json({ subscription_registration_status: true, subscription_reference_id });
+    } else {
+      const localUsers = getLocalUsers();
+      const userIndex = localUsers.findIndex(u => u.email === user_id || String(u.id) === user_id);
+      
+      if (userIndex === -1) {
+        return res.json({ subscription_registration_status: false });
+      }
+
+      if (!localUsers[userIndex].assignedCourses) {
+        localUsers[userIndex].assignedCourses = [];
+      }
+
+      if (!localUsers[userIndex].assignedCourses.includes(course_id)) {
+        localUsers[userIndex].assignedCourses.push(course_id);
+        fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
+      }
+
+      return res.json({ subscription_registration_status: true, subscription_reference_id });
+    }
+  } catch (err) {
+    console.error('Subscription error:', err);
+    res.json({ subscription_registration_status: false });
+  }
+});
+
+app.post('/api/users/:email/progress', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const { courseId, videoUrl, midCourseQuizCompleted, finalQuizCompleted } = req.body;
+    
+    if (isMongoConnected) {
+      const user = await User.findOne({ email });
+      if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+      
+      let courseProgress = user.progress.find(p => String(p.courseId) === String(courseId));
+      if (!courseProgress) {
+        courseProgress = { courseId, watchedVideos: [], midCourseQuizCompleted: false, finalQuizCompleted: false };
+        user.progress.push(courseProgress);
+        // Refetch to modify subdoc
+        courseProgress = user.progress[user.progress.length - 1];
+      }
+      
+      if (videoUrl && !courseProgress.watchedVideos.includes(videoUrl)) {
+        courseProgress.watchedVideos.push(videoUrl);
+      }
+      if (midCourseQuizCompleted !== undefined) {
+        courseProgress.midCourseQuizCompleted = midCourseQuizCompleted;
+      }
+      if (finalQuizCompleted !== undefined) {
+        courseProgress.finalQuizCompleted = finalQuizCompleted;
+      }
+      
+      await user.save();
+      return res.json({ success: true, progress: user.progress });
+    } else {
+      const localUsers = getLocalUsers();
+      const userIndex = localUsers.findIndex(u => u.email === email);
+      if (userIndex === -1) return res.status(404).json({ success: false, message: 'User not found.' });
+      
+      const user = localUsers[userIndex];
+      if (!user.progress) user.progress = [];
+      
+      let courseProgress = user.progress.find(p => String(p.courseId) === String(courseId));
+      if (!courseProgress) {
+        courseProgress = { courseId, watchedVideos: [], midCourseQuizCompleted: false, finalQuizCompleted: false };
+        user.progress.push(courseProgress);
+      }
+      
+      if (videoUrl && !courseProgress.watchedVideos.includes(videoUrl)) {
+        courseProgress.watchedVideos.push(videoUrl);
+      }
+      if (midCourseQuizCompleted !== undefined) {
+        courseProgress.midCourseQuizCompleted = midCourseQuizCompleted;
+      }
+      if (finalQuizCompleted !== undefined) {
+        courseProgress.finalQuizCompleted = finalQuizCompleted;
+      }
+      
+      fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
+      return res.json({ success: true, progress: user.progress });
+    }
+  } catch (err) {
+    console.error('Error updating progress:', err);
+    res.status(500).json({ success: false, message: 'Server error updating progress.' });
+  }
+});
+
 // Utility function to check if a port is available
 const isPortAvailable = (port) => {
   return new Promise((resolve) => {
@@ -970,7 +1193,7 @@ const isPortAvailable = (port) => {
       resolve(true);
     });
     
-    server.listen(port, '127.0.0.1');
+    server.listen(port);
   });
 };
 
@@ -1017,7 +1240,7 @@ const startServer = async () => {
     }
 
     // Now listen on the determined port
-    server = app.listen(PORT, '127.0.0.1', () => {
+    server = app.listen(PORT, () => {
       serverStarted = true;
       console.log(`\n🚀 Server is running on http://localhost:${PORT}`);
       if (PORT !== DEFAULT_PORT) {

@@ -195,10 +195,27 @@
 }
 
 .cta-title span {
-  background: linear-gradient(135deg, var(--primary-dark), var(--text-primary));
+  background: linear-gradient(
+    to right,
+    var(--primary) 20%,
+    #93c5fd 40%,
+    #bfdbfe 50%,
+    #93c5fd 60%,
+    var(--primary) 80%
+  );
+  background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  animation: shine-cta 4s linear infinite;
+  display: inline-block;
+  text-shadow: 0px 4px 24px rgba(59, 130, 246, 0.3);
+}
+
+@keyframes shine-cta {
+  to {
+    background-position: 200% center;
+  }
 }
 
 .cta-subtitle {

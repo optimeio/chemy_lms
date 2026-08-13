@@ -67,14 +67,9 @@ export default function Navbar() {
               </button>
             </div>
           ) : (
-            <>
               <Link to="/login" className="btn btn-secondary nav-link-button">
                 Login
               </Link>
-              <Link to="/register" className="btn btn-secondary nav-link-button">
-                Sign Up
-              </Link>
-            </>
           )}
         </div>
 
@@ -123,18 +118,11 @@ export default function Navbar() {
                 </button>
               </li>
             ) : (
-              <>
                 <li>
                   <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
                     Login
                   </Link>
                 </li>
-                <li>
-                  <Link to="/register" onClick={() => setIsMobileMenuOpen(false)}>
-                    Sign Up
-                  </Link>
-                </li>
-              </>
             )}
           </ul>
         </div>

@@ -21,7 +21,7 @@ export default function About() {
       tags: ['Managing Director', 'Brand Management', 'Operations', 'Business Strategy'],
       vision: 'Innovation, Sustainability & Excellence',
       bio: 'A commerce-driven visionary and strategic leader, Ganga P oversees Chemy LMS\' day-to-day operations, brand positioning, and long-term strategic direction. Holding a B.Com and M.Com, she brings a sharp business acumen and deep understanding of market dynamics to every decision. Under her leadership, Chemy LMS has significantly strengthened its brand presence across Tamil Nadu, streamlined operations for efficiency, and built scalable systems that support the platform\'s ambitious growth roadmap across all nine divisions.',
-      image: '/ganga.jpg'
+      image: '/ganga.png'
     }
   ];
 

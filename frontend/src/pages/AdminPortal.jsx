@@ -1,8 +1,17 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/AdminPortal.css';
+import { midCourseQuizTemplate, finalAssessmentQuizTemplate } from '../data/iotQuizTemplate';
+import { apiService } from '../services/apiService';
 
 const API = '/api/admin';
+const getFullUrl = (path) => {
+  if (!path) return '';
+  if (path.startsWith('http') || path.startsWith('data:') || path.startsWith('blob:')) return path;
+  const baseUrl = import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL.replace(/\/api$/, '') : 'http://localhost:5000';
+  // Add a cache buster to prevent the browser from showing a cached broken image
+  return `${baseUrl}${path}?cb=1`;
+};
 
 /* ---- CSV helper ---- */
 function downloadCSV(rows, filename) {
@@ -94,7 +103,6 @@ const MENU_ITEMS = [
   { name: 'Students', icon: Icons.Students },
   { name: 'Colleges', icon: Icons.Colleges },
   { name: 'My Courses', icon: Icons.Courses },
-  { name: 'Live Classes', icon: Icons.LiveClass },
   { name: 'Assignments / Quiz', icon: Icons.Quiz },
   { name: 'Certificates', icon: Icons.Certificate },
   { name: 'Profile', icon: Icons.Profile },
@@ -125,8 +133,7 @@ export default function AdminPortal() {
 
   const fetchCourses = async () => {
     try {
-      const res = await fetch('/api/courses');
-      const data = await res.json();
+      const data = await apiService.get('/courses');
       if (data.success) {
         setCourses(data.courses);
       }
@@ -149,7 +156,7 @@ export default function AdminPortal() {
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
-    if (!user || (user.email !== 'admin@chemylms.com' && user.email !== 'chemylms@gmail.com')) {
+    if (!user || (user.email !== 'admin@chemylms.com' && user.email !== 'chemylms@gmail.com' && user.email !== 'thesmgroups@gmail.com')) {
       navigate('/login');
       return;
     }
@@ -251,33 +258,139 @@ export default function AdminPortal() {
   const handleFileChange = (e, fieldName) => {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setCourseModal(prev => ({
-        ...prev,
-        [fieldName]: reader.result,
-        [fieldName + 'File']: file.name
-      }));
-    };
-    reader.readAsDataURL(file);
+    setCourseModal(prev => ({
+      ...prev,
+      [fieldName]: URL.createObjectURL(file), // used for preview
+      [`${fieldName}Raw`]: file, // the actual file
+      [fieldName + 'File']: file.name
+    }));
   };
 
-  const saveCourse = async () => {
+  const handleMultipleFilesChange = async (e, fieldName) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    
+    if (files.length > 9) {
+      showToast('You can only upload up to 9 files.', 'error');
+      return;
+    }
+
+    const processedFiles = files.map(file => ({
+      data: file, // keep raw file
+      name: file.name,
+      isRawFile: true
+    }));
+
+    setCourseModal(prev => ({
+      ...prev,
+      [fieldName]: processedFiles
+    }));
+  };
+
+  const handleSlotFileChange = (e, fieldName, index) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setCourseModal(prev => {
+      const arr = [...(prev[fieldName] || [])];
+      while (arr.length <= index) arr.push({ url: '', name: '' });
+      arr[index] = { data: file, name: file.name, isRawFile: true };
+      return { ...prev, [fieldName]: arr };
+    });
+  };
+
+  const handleSlotUrlChange = (val, fieldName, index) => {
+    setCourseModal(prev => {
+      const arr = [...(prev[fieldName] || [])];
+      while (arr.length <= index) arr.push({ url: '', name: '' });
+      arr[index] = { url: val, name: val ? 'URL Link' : '' };
+      return { ...prev, [fieldName]: arr };
+    });
+  };
+
+  const handleQuizChange = (quizType, index, field, value, optionIndex = null) => {
+    setCourseModal(prev => {
+      const arr = [...(prev[quizType] || [])];
+      while (arr.length <= index) {
+        arr.push({ question: '', options: ['', '', '', ''], correctOptionIndex: 0 });
+      }
+      
+      const currentQ = { ...arr[index] };
+      
+      if (field === 'question') {
+        currentQ.question = value;
+      } else if (field === 'options' && optionIndex !== null) {
+        const newOptions = [...(currentQ.options || ['', '', '', ''])];
+        newOptions[optionIndex] = value;
+        currentQ.options = newOptions;
+      } else if (field === 'correctOptionIndex') {
+        currentQ.correctOptionIndex = value;
+      }
+      
+      arr[index] = currentQ;
+      return { ...prev, [quizType]: arr };
+    });
+  };
+
+  const loadIotTemplate = () => {
+    setCourseModal(prev => ({
+      ...prev,
+      midCourseQuiz: JSON.parse(JSON.stringify(midCourseQuizTemplate)),
+      finalAssessmentQuiz: JSON.parse(JSON.stringify(finalAssessmentQuizTemplate))
+    }));
+    showToast('IoT Template Loaded Successfully!', 'success');
+  };
+
+  const saveCourse = async (statusArg = 'published') => {
     if (!courseModal.title || !courseModal.content) {
       showToast('Title and content are required!', 'error');
       return;
     }
+    
+    const formData = new FormData();
+    formData.append('title', courseModal.title);
+    formData.append('courseCode', courseModal.courseCode || '');
+    formData.append('trainerName', courseModal.trainerName || '');
+    formData.append('category', courseModal.category || '');
+    formData.append('content', courseModal.content);
+    formData.append('status', statusArg);
+    formData.append('midCourseQuiz', JSON.stringify(courseModal.midCourseQuiz || []));
+    formData.append('finalAssessmentQuiz', JSON.stringify(courseModal.finalAssessmentQuiz || []));
+
+    if (courseModal.imageRaw) {
+      formData.append('imageFile', courseModal.imageRaw);
+    } else if (courseModal.image && !courseModal.image.startsWith('blob:')) {
+      formData.append('image', courseModal.image);
+    }
+
+    const pptsData = (courseModal.ppts || []).map((p, i) => {
+      if (p.isRawFile) {
+        formData.append(`pptFile_${i}`, p.data);
+        return { name: p.name, isRawFile: true };
+      }
+      return { url: p.url, name: p.name };
+    });
+    formData.append('ppts', JSON.stringify(pptsData));
+
+    const videosData = (courseModal.videos || []).map((v, i) => {
+      if (v.isRawFile) {
+        formData.append(`videoFile_${i}`, v.data);
+        return { name: v.name, isRawFile: true };
+      }
+      return { url: v.url, name: v.name };
+    });
+    formData.append('videos', JSON.stringify(videosData));
+    
     try {
       const isCreate = courseModal.mode === 'create';
-      const url = isCreate ? '/api/admin/courses' : `/api/admin/courses/${courseModal._id || courseModal.id}`;
-      const method = isCreate ? 'POST' : 'PUT';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(courseModal)
-      });
-      const data = await res.json();
+      const url = isCreate ? '/admin/courses' : `/admin/courses/${courseModal._id || courseModal.id}`;
+      
+      let data;
+      if (isCreate) {
+        data = await apiService.post(url, formData);
+      } else {
+        data = await apiService.put(url, formData);
+      }
       if (data.success) {
         showToast(isCreate ? 'Course created successfully!' : 'Course updated successfully!');
         fetchCourses();
@@ -293,10 +406,7 @@ export default function AdminPortal() {
 
   const confirmDeleteCourse = async () => {
     try {
-      const res = await fetch(`/api/admin/courses/${deleteCourseModal._id || deleteCourseModal.id}`, {
-        method: 'DELETE'
-      });
-      const data = await res.json();
+      const data = await apiService.delete(`/admin/courses/${deleteCourseModal._id || deleteCourseModal.id}`);
       if (data.success) {
         showToast('Course deleted successfully!');
         fetchCourses();
@@ -660,7 +770,7 @@ export default function AdminPortal() {
                 <button
                   className="admin-csv-btn"
                   style={{ backgroundColor: 'var(--primary)', color: 'var(--white)', border: 'none' }}
-                  onClick={() => setCourseModal({ mode: 'create', title: '', content: '', image: '', imageFile: '', ppt: '', pptFile: '', video: '', videoFile: '' })}
+                  onClick={() => setCourseModal({ mode: 'create', title: '', courseCode: '', trainerName: '', category: '', content: '', image: '', imageFile: '', ppts: [], videos: [], midCourseQuiz: [], finalAssessmentQuiz: [] })}
                 >
                   + Create Course
                 </button>
@@ -671,8 +781,8 @@ export default function AdminPortal() {
                       CourseName: c.title,
                       Content: c.content,
                       HasImage: c.image ? 'Yes' : 'No',
-                      HasPPT: c.ppt ? 'Yes' : 'No',
-                      HasVideo: c.video ? 'Yes' : 'No',
+                      HasPPT: c.ppts && c.ppts.length > 0 ? 'Yes' : 'No',
+                      HasVideo: c.videos && c.videos.length > 0 ? 'Yes' : 'No',
                       AssignedStudents: students.filter(s => (s.assignedCourses || []).includes(c.title)).length,
                     })),
                     'courses_export.csv'
@@ -698,7 +808,7 @@ export default function AdminPortal() {
                     <div key={course._id || course.id} className="course-card">
                       {course.image ? (
                         <div className="course-card-image-wrapper" style={{ width: '100%', height: '140px', overflow: 'hidden', borderRadius: '8px', marginBottom: '12px' }}>
-                          <img src={course.image} alt={course.title} className="course-card-img" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <img src={getFullUrl(course.image)} alt={course.title} className="course-card-img" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.onerror = null; e.target.src = '/chemy2.png'; }} />
                         </div>
                       ) : (
                         <div className="course-card-icon">{Icons.Courses}</div>
@@ -711,8 +821,13 @@ export default function AdminPortal() {
                         {count} student{count !== 1 ? 's' : ''} enrolled
                       </p>
                       <div className="course-card-badges" style={{ display: 'flex', gap: '5px', margin: '8px 0', flexWrap: 'wrap' }}>
-                        {course.ppt && <span className="admin-badge green" style={{ fontSize: '11px' }}>Slides</span>}
-                        {course.video && <span className="admin-badge blue" style={{ fontSize: '11px' }}>Video</span>}
+                        {course.status === 'draft' ? (
+                          <span className="admin-badge amber" style={{ fontSize: '11px' }}>Draft</span>
+                        ) : (
+                          <span className="admin-badge green" style={{ fontSize: '11px' }}>Published</span>
+                        )}
+                        {course.ppts && course.ppts.length > 0 && <span className="admin-badge blue" style={{ fontSize: '11px' }}>{course.ppts.length} Slide{course.ppts.length > 1 ? 's' : ''}</span>}
+                        {course.videos && course.videos.length > 0 && <span className="admin-badge wine" style={{ fontSize: '11px' }}>{course.videos.length} Video{course.videos.length > 1 ? 's' : ''}</span>}
                       </div>
                       <div className="course-card-actions" style={{ display: 'flex', gap: '6px', width: '100%', marginTop: '12px', borderTop: '1px solid var(--bg-section)', paddingTop: '10px' }}>
                         <button className="action-btn edit" style={{ flex: 1, padding: '6px' }} onClick={() => setCourseModal({ mode: 'edit', ...course })}>{Icons.Edit} Edit</button>
@@ -834,13 +949,11 @@ export default function AdminPortal() {
 
       {/* Sidebar */}
       <aside className={`admin-sidebar ${mobileSidebar ? 'open' : ''}`}>
-        <div className="admin-logo-area">
-          <div className="admin-logo-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          </div>
+        <div className="admin-logo-area" style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '36px' }}>
+          <img src="/chemy2.png" alt="Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
           <div className="admin-logo-text">
             <h2>CHEMY LMS</h2>
-            <p>admin portal</p>
+            <p style={{ margin: 0 }}>admin portal</p>
           </div>
         </div>
 
@@ -1009,61 +1122,281 @@ export default function AdminPortal() {
       {/* ===== COURSE CREATE / EDIT MODAL ===== */}
       {courseModal && (
         <div className="admin-modal-overlay" onClick={() => setCourseModal(null)}>
-          <div className="admin-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
-            <h2>{courseModal.mode === 'create' ? 'Create New Course' : 'Edit Course'}</h2>
-            <div className="admin-modal-form" style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
+          <div className="admin-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '650px', padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+            <div className="course-modal-header">
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                {courseModal.mode === 'create' ? '🚀 Create Course' : '➖ Edit Course'}
+                {courseModal.status === 'draft' && <span style={{ fontSize: '10px', background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>Draft</span>}
+              </h2>
+              <div className="modal-actions" style={{ justifyContent: 'space-between', padding: '10px 20px', borderBottom: '1px solid #e2e8f0' }}>
+                <button className="modal-btn save-draft" onClick={() => saveCourse('draft')}>💾 Save Draft</button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button className="modal-btn cancel" onClick={() => setCourseModal(null)}>Cancel</button>
+                  <button className="modal-btn submit" onClick={() => saveCourse('published')}>🚀 Publish Course</button>
+                </div>
+              </div>
+            </div>
+            <div className="admin-modal-form course-modal-scroll-area">
               <div className="modal-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Course Title *</label>
                 <input
                   type="text"
                   placeholder="e.g. Embedded Systems"
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
                   value={courseModal.title || ''}
                   onChange={e => setCourseModal({ ...courseModal, title: e.target.value })}
                 />
               </div>
+
               <div className="modal-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Course Content / Description *</label>
                 <textarea
                   placeholder="Enter course syllabus or details..."
-                  style={{ width: '100%', minHeight: '100px', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)', resize: 'vertical', fontFamily: 'inherit' }}
+                  style={{ minHeight: '100px', resize: 'vertical' }}
                   value={courseModal.content || ''}
                   onChange={e => setCourseModal({ ...courseModal, content: e.target.value })}
                 />
               </div>
+
               <div className="modal-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Course Image (Upload)</label>
+                <label style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Course Unique Code (e.g. NTEDU0005) *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. NTEDU0005"
+                  value={courseModal.courseCode || ''}
+                  onChange={e => setCourseModal({ ...courseModal, courseCode: e.target.value })}
+                />
+              </div>
+
+              <div className="modal-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Course Cover Image (Upload or URL)</label>
                 <input
                   type="file"
                   accept="image/*"
                   onChange={e => handleFileChange(e, 'image')}
                 />
                 {courseModal.imageFile && <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Selected: {courseModal.imageFile}</span>}
+                {courseModal.image && (
+                  <div style={{ marginTop: '10px' }}>
+                    <img src={getFullUrl(courseModal.image)} alt="Preview" style={{ width: '100%', maxHeight: '150px', objectFit: 'contain', borderRadius: '6px' }} onError={(e) => { e.target.onerror = null; e.target.src = '/chemy2.png'; }} />
+                  </div>
+                )}
               </div>
+
               <div className="modal-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>PPT Presentation (Upload)</label>
+                <label style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Instructor Name</label>
                 <input
-                  type="file"
-                  accept=".ppt,.pptx"
-                  onChange={e => handleFileChange(e, 'ppt')}
+                  type="text"
+                  placeholder="e.g. Stephen Grider"
+                  value={courseModal.trainerName || ''}
+                  onChange={e => setCourseModal({ ...courseModal, trainerName: e.target.value })}
                 />
-                {courseModal.pptFile && <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Selected: {courseModal.pptFile}</span>}
               </div>
+
               <div className="modal-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Video File (Upload)</label>
+                <label style={{ fontWeight: 600, fontSize: '13px', color: '#475569' }}>Category</label>
                 <input
-                  type="file"
-                  accept="video/*"
-                  onChange={e => handleFileChange(e, 'video')}
+                  type="text"
+                  placeholder="e.g. Programming / Electronics"
+                  value={courseModal.category || ''}
+                  onChange={e => setCourseModal({ ...courseModal, category: e.target.value })}
                 />
-                {courseModal.videoFile && <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Selected: {courseModal.videoFile}</span>}
+              </div>
+
+              <div className="modal-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '20px' }}>
+                <div className="slot-title">
+                  🎬 Course Videos (12 Slots - Upload or URL)
+                </div>
+                <div className="slot-grid">
+                  {Array.from({ length: 6 }).map((_, i) => {
+                    const item = (courseModal.videos || [])[i] || {};
+                    const isLoaded = !!(item.url || item.data);
+                    return (
+                      <div key={i} className="slot-card">
+                        <div className="slot-header">Video #{i + 1}</div>
+                        <label className="slot-upload-btn">
+                          <input type="file" style={{ display: 'none' }} accept="video/*" onChange={e => handleSlotFileChange(e, 'videos', i)} />
+                          +
+                        </label>
+                        <input type="text" className="slot-url-input" placeholder="Or paste video URL..." value={item.url && !item.url.startsWith('/uploads') ? item.url : ''} onChange={e => handleSlotUrlChange(e.target.value, 'videos', i)} />
+                        {isLoaded && (
+                          <div className="slot-preview">
+                            <div className="slot-preview-icon">🎥</div>
+                            <div className="slot-preview-text">✓ Video Preview</div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', margin: '16px 0 8px 0', borderBottom: '2px dashed #cbd5e1', paddingBottom: '8px' }}>
+                  📝 MID-QUIZ
+                </div>
+
+                <div className="slot-grid">
+                  {Array.from({ length: 6 }).map((_, idx) => {
+                    const i = idx + 6;
+                    const item = (courseModal.videos || [])[i] || {};
+                    const isLoaded = !!(item.url || item.data);
+                    return (
+                      <div key={i} className="slot-card">
+                        <div className="slot-header">Video #{i + 1}</div>
+                        <label className="slot-upload-btn">
+                          <input type="file" style={{ display: 'none' }} accept="video/*" onChange={e => handleSlotFileChange(e, 'videos', i)} />
+                          +
+                        </label>
+                        <input type="text" className="slot-url-input" placeholder="Or paste video URL..." value={item.url && !item.url.startsWith('/uploads') ? item.url : ''} onChange={e => handleSlotUrlChange(e.target.value, 'videos', i)} />
+                        {isLoaded && (
+                          <div className="slot-preview">
+                            <div className="slot-preview-icon">🎥</div>
+                            <div className="slot-preview-text">✓ Video Preview</div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', margin: '16px 0 8px 0', borderBottom: '2px dashed #cbd5e1', paddingBottom: '8px' }}>
+                  🏆 FINAL QUIZ
+                </div>
+              </div>
+
+              <div className="modal-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '20px' }}>
+                <div className="slot-title">
+                  📊 Course PPT Presentations (12 Slots - Upload or URL)
+                </div>
+                <div className="slot-grid">
+                  {Array.from({ length: 12 }).map((_, i) => {
+                    const item = (courseModal.ppts || [])[i] || {};
+                    const isLoaded = !!(item.url || item.data);
+                    return (
+                      <div key={i} className="slot-card">
+                        <div className="slot-header">PPT #{i + 1}</div>
+                        <label className="slot-upload-btn">
+                          <input type="file" style={{ display: 'none' }} accept=".ppt,.pptx,.pdf" onChange={e => handleSlotFileChange(e, 'ppts', i)} />
+                          +
+                        </label>
+                        <input type="text" className="slot-url-input" placeholder="Or paste PPT URL..." value={item.url && !item.url.startsWith('/uploads') ? item.url : ''} onChange={e => handleSlotUrlChange(e.target.value, 'ppts', i)} />
+                        {isLoaded && (
+                          <div className="slot-preview">
+                            <div className="slot-preview-icon">📊</div>
+                            <div className="slot-preview-text">✓ PPT Loaded</div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="modal-form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div className="slot-title" style={{ fontSize: '15px', color: '#1e293b' }}>
+                    📝 Quiz Paper Creators (Mid-Course & Final Assessment)
+                  </div>
+                  <button type="button" className="action-btn assign" onClick={loadIotTemplate} style={{ padding: '6px 12px', background: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: '6px' }}>
+                    Load IoT Quiz Template
+                  </button>
+                </div>
+
+                {/* MID COURSE QUIZ */}
+                <div className="quiz-section-container mid-course">
+                  <div className="quiz-section-header">
+                    1. 📝 Mid-Course Quiz Paper Creator (25 Questions — After Video 6)
+                    <div className="quiz-section-sub">Students take this 25-question quiz after Video 6 to unlock Video 7.</div>
+                  </div>
+                  <div className="quiz-questions-grid">
+                    {Array.from({ length: 25 }).map((_, qIdx) => {
+                      const qData = (courseModal.midCourseQuiz || [])[qIdx] || { question: '', options: ['', '', '', ''], correctOptionIndex: 0 };
+                      return (
+                        <div key={qIdx} className="quiz-question-card">
+                          <div className="quiz-q-header">Mid Q#{qIdx + 1} (1 Mark)</div>
+                          <input 
+                            type="text" 
+                            className="quiz-q-input" 
+                            placeholder="Enter question here..." 
+                            value={qData.question}
+                            onChange={(e) => handleQuizChange('midCourseQuiz', qIdx, 'question', e.target.value)}
+                          />
+                          <div className="quiz-options-grid">
+                            {[0, 1, 2, 3].map(optIdx => (
+                              <label key={optIdx} className={`quiz-option-row ${qData.correctOptionIndex === optIdx ? 'correct' : ''}`}>
+                                <input 
+                                  type="radio" 
+                                  name={`mid-q-${qIdx}`} 
+                                  checked={qData.correctOptionIndex === optIdx}
+                                  onChange={() => handleQuizChange('midCourseQuiz', qIdx, 'correctOptionIndex', optIdx)}
+                                />
+                                <span className="quiz-opt-label">{qData.correctOptionIndex === optIdx ? '✓ Correct' : 'Correct?'}</span>
+                                <input 
+                                  type="text" 
+                                  className="quiz-opt-input"
+                                  placeholder={`Option ${optIdx + 1}`}
+                                  value={qData.options[optIdx] || ''}
+                                  onChange={(e) => handleQuizChange('midCourseQuiz', qIdx, 'options', e.target.value, optIdx)}
+                                />
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* FINAL ASSESSMENT QUIZ */}
+                <div className="quiz-section-container final-assessment">
+                  <div className="quiz-section-header">
+                    2. 🏆 Final Assessment Quiz Paper Creator (25 Questions — After Video 12)
+                    <div className="quiz-section-sub">Students take this 25-question final assessment after Video 12 to unlock Certification.</div>
+                  </div>
+                  <div className="quiz-questions-grid">
+                    {Array.from({ length: 25 }).map((_, qIdx) => {
+                      const qData = (courseModal.finalAssessmentQuiz || [])[qIdx] || { question: '', options: ['', '', '', ''], correctOptionIndex: 0 };
+                      return (
+                        <div key={qIdx} className="quiz-question-card">
+                          <div className="quiz-q-header">Final Q#{qIdx + 1} (1 Mark)</div>
+                          <input 
+                            type="text" 
+                            className="quiz-q-input" 
+                            placeholder="Enter question here..." 
+                            value={qData.question}
+                            onChange={(e) => handleQuizChange('finalAssessmentQuiz', qIdx, 'question', e.target.value)}
+                          />
+                          <div className="quiz-options-grid">
+                            {[0, 1, 2, 3].map(optIdx => (
+                              <label key={optIdx} className={`quiz-option-row ${qData.correctOptionIndex === optIdx ? 'correct' : ''}`}>
+                                <input 
+                                  type="radio" 
+                                  name={`final-q-${qIdx}`} 
+                                  checked={qData.correctOptionIndex === optIdx}
+                                  onChange={() => handleQuizChange('finalAssessmentQuiz', qIdx, 'correctOptionIndex', optIdx)}
+                                />
+                                <span className="quiz-opt-label">{qData.correctOptionIndex === optIdx ? '✓ Correct' : 'Correct?'}</span>
+                                <input 
+                                  type="text" 
+                                  className="quiz-opt-input"
+                                  placeholder={`Option ${optIdx + 1}`}
+                                  value={qData.options[optIdx] || ''}
+                                  onChange={(e) => handleQuizChange('finalAssessmentQuiz', qIdx, 'options', e.target.value, optIdx)}
+                                />
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
               </div>
             </div>
-            <div className="modal-actions" style={{ marginTop: '20px' }}>
+            
+            <div className="course-modal-footer">
               <button className="modal-btn cancel" onClick={() => setCourseModal(null)}>Cancel</button>
-              <button className="modal-btn save" onClick={saveCourse}>
-                {courseModal.mode === 'create' ? 'Create' : 'Save Changes'}
-              </button>
+              <button className="modal-btn save-draft" onClick={() => saveCourse('draft')}>💾 Save Draft</button>
+              <button className="modal-btn save publish" onClick={() => saveCourse('published')}>🚀 Publish Course</button>
             </div>
           </div>
         </div>

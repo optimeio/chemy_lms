@@ -179,8 +179,6 @@ export default function StudentSignup() {
                 <div className="auth-header" style={{ textAlign: 'left', marginBottom: '18px' }}>
                   <div style={{ display: 'flex', gap: '12px', marginBottom: '10px' }}>
                     <Link to="/register/student" style={{ fontWeight: 700, color: '#0F172A', textDecoration: 'none' }}>Student</Link>
-                    <Link to="/register/trainer" style={{ color: '#475569', textDecoration: 'none' }}>Trainer</Link>
-                    <Link to="/register/company" style={{ color: '#475569', textDecoration: 'none' }}>Company</Link>
                   </div>
                   <span className="auth-badge" style={{ display: 'inline-block', marginBottom: '12px', padding: '8px 14px', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.12)', color: '#2563EB', fontWeight: 700, fontSize: '12px' }}>
                     New Student
@@ -363,17 +361,18 @@ export default function StudentSignup() {
               </div>
             </div>
 
-            <div style={{ background: 'linear-gradient(180deg, #EFF6FF 0%, #FFFFFF 100%)', padding: '32px 26px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-              <div>
-                <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#0F172A', marginBottom: '16px' }}>Smart Student Journey</h2>
-                <p style={{ color: '#475569', lineHeight: 1.8, fontSize: '15px', marginBottom: '24px' }}>
+            <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)', padding: '40px 32px', display: 'flex', flexDirection: 'column', justifyContent: 'center', color: '#ffffff', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: '-10%', right: '-10%', width: '300px', height: '300px', background: 'radial-gradient(circle, rgba(59,130,246,0.3) 0%, transparent 70%)', borderRadius: '50%' }}></div>
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <h2 style={{ fontSize: '26px', fontWeight: 800, color: '#ffffff', marginBottom: '16px', letterSpacing: '-0.5px' }}>Smart Student Journey</h2>
+                <p style={{ color: '#cbd5e1', lineHeight: 1.7, fontSize: '15px', marginBottom: '32px' }}>
                   Join Chemy LMS and access curated learning tracks, live projects, and expert support for your engineering journey.
                 </p>
-                <div style={{ background: '#FFFFFF', border: '1px solid rgba(59, 130, 246, 0.16)', borderRadius: '22px', padding: '20px' }}>
-                  <p style={{ color: '#2563EB', fontWeight: 700, marginBottom: '8px' }}>Why Chemy LMS?</p>
-                  <ul style={{ paddingLeft: '18px', color: '#475569', lineHeight: 1.9, fontSize: '14px' }}>
-                    <li>Industry-aligned programs</li>
-                    <li>Expert coaching and support</li>
+                <div style={{ background: 'rgba(255, 255, 255, 0.1)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '20px', padding: '24px' }}>
+                  <p style={{ color: '#93c5fd', fontWeight: 700, marginBottom: '12px', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Why Chemy LMS?</p>
+                  <ul style={{ paddingLeft: '20px', color: '#f8fafc', lineHeight: 2, fontSize: '14.5px', margin: 0 }}>
+                    <li style={{ marginBottom: '8px' }}>Industry-aligned programs</li>
+                    <li style={{ marginBottom: '8px' }}>Expert coaching and support</li>
                     <li>Practical training with live projects</li>
                   </ul>
                 </div>

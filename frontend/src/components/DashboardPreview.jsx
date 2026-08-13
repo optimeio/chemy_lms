@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import '../styles/Dashboard.css';
 
+
 export default function Dashboard() {
   const cardVariants = {
     hidden: { opacity: 0, y: 20 },

@@ -27,7 +27,8 @@ export default function Hero() {
         animate="visible"
       >
         <motion.h1 className="hero-title" variants={itemVariants}>
-          <span>Chemy LMS</span> <br /> Learning Excellence
+          <span className="premium-text-gradient">Chemy LMS</span> <br /> 
+          <span className="premium-text-glow">Learning Excellence</span>
         </motion.h1>
         
         <motion.p className="hero-subtitle" variants={itemVariants}>

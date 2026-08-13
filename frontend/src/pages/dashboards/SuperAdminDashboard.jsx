@@ -1,3 +1,4 @@
+import { useOutletContext } from 'react-router-dom';
 import styles from '../../styles/DashboardShell.module.css';
 
 const stats = [
@@ -17,6 +18,25 @@ const metrics = [
 ];
 
 export default function SuperAdminDashboard() {
+  const { activeTab } = useOutletContext() || { activeTab: 'dashboard' };
+
+  if (activeTab !== 'dashboard') {
+    return (
+      <section className={styles.panel}>
+        <div className={styles.headerBlock}>
+          <div>
+            <h2 className={styles.cardTitle}>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h2>
+            <p className={styles.cardSubtitle}>This administration module is currently under development.</p>
+          </div>
+        </div>
+        <div className={styles.widgetCard} style={{ marginTop: '20px', padding: '40px', textAlign: 'center' }}>
+          <h3>More tools coming soon!</h3>
+          <p>The {activeTab} management interface will be available in a future update.</p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className={styles.panel}>
       <div className={styles.headerBlock}>
