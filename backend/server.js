@@ -82,7 +82,7 @@ const sendOTPEmail = async (email, otp) => {
         </div>
       `,
     };
-    
+
     await emailTransporter.sendMail(mailOptions);
     console.log(`✅ OTP sent to ${email}`);
     return true;
@@ -219,6 +219,45 @@ try {
   Course = mongoose.models.Course;
 }
 
+// Certificate Schema
+const certificateSchema = new mongoose.Schema({
+  userId: String,
+  userEmail: String,
+  userName: String,
+  courseId: String,
+  courseTitle: String,
+  issuedDate: { type: Date, default: Date.now },
+  downloadedAt: { type: Date, default: null },
+  certificateData: String, // Base64 encoded certificate image
+  status: { type: String, enum: ['generated', 'downloaded'], default: 'generated' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+let Certificate;
+try {
+  Certificate = mongoose.model('Certificate', certificateSchema);
+} catch (err) {
+  Certificate = mongoose.models.Certificate;
+}
+
+// Local certificates file
+const CERTIFICATES_FILE = path.join(__dirname, 'data', 'certificates.json');
+const getLocalCertificates = () => {
+  try {
+    if (!fs.existsSync(CERTIFICATES_FILE)) {
+      fs.writeFileSync(CERTIFICATES_FILE, JSON.stringify([], null, 2));
+    }
+    const data = fs.readFileSync(CERTIFICATES_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (err) {
+    return [];
+  }
+};
+
+const saveLocalCertificates = (certificates) => {
+  fs.writeFileSync(CERTIFICATES_FILE, JSON.stringify(certificates, null, 2));
+};
+
 // Database Connection
 let isMongoConnected = false;
 const LOCAL_MONGO_URI = process.env.LOCAL_MONGO_URI || 'mongodb://127.0.0.1:27017/chemy_lms';
@@ -342,7 +381,7 @@ app.post('/api/auth/register', async (req, res) => {
     if (!department || department.trim() === '') {
       errors.department = 'Department selection is required.';
     }
-    
+
     const validDistricts = [
       'Ariyalur', 'Chengalpattu', 'Chennai', 'Coimbatore', 'Cuddalore',
       'Dharmapuri', 'Dindigul', 'Erode', 'Kallakurichi', 'Kanchipuram',
@@ -439,7 +478,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (isMongoConnected) {
       user = await User.findOne({ email });
     }
-    
+
     // Fallback to local users if not found in Mongo
     if (!user) {
       const localUsers = getLocalUsers();
@@ -716,6 +755,34 @@ app.get('/api/courses', apiKeyAuth, async (req, res) => {
   }
 });
 
+// Get single course by id or title
+app.get('/api/courses/:id', apiKeyAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (isMongoConnected) {
+      let course = null;
+      try {
+        course = await Course.findById(id);
+      } catch (e) {
+        // not a valid ObjectId or other error — try fallback
+      }
+      if (!course) {
+        course = await Course.findOne({ $or: [{ id }, { title: id }] });
+      }
+      if (!course) return res.status(404).json({ success: false, message: 'Course not found.' });
+      return res.json({ success: true, course });
+    } else {
+      const localCourses = getLocalCourses();
+      const course = localCourses.find(c => String(c._id) === String(id) || String(c.id) === String(id) || String(c.title) === String(id));
+      if (!course) return res.status(404).json({ success: false, message: 'Course not found.' });
+      return res.json({ success: true, course });
+    }
+  } catch (err) {
+    console.error('Error fetching course:', err);
+    res.status(500).json({ success: false, message: 'Server error fetching course.' });
+  }
+});
+
 app.post('/api/admin/courses', apiKeyAuth, upload.any(), async (req, res) => {
   try {
     const { title, courseCode, trainerName, category, status, image, content, ppts, videos, midCourseQuiz, finalAssessmentQuiz } = req.body;
@@ -911,21 +978,26 @@ app.delete('/api/admin/courses/:id', apiKeyAuth, async (req, res) => {
 app.get('/api/users/:email', async (req, res) => {
   try {
     const { email } = req.params;
+    let user = null;
+
     if (isMongoConnected) {
-      const user = await User.findOne({ email }, '-password');
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'User not found.' });
-      }
-      return res.json({ success: true, user });
-    } else {
-      const localUsers = getLocalUsers();
-      const user = localUsers.find(u => u.email === email);
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'User not found.' });
-      }
-      const { password, ...userWithoutPassword } = user;
-      return res.json({ success: true, user: userWithoutPassword });
+      user = await User.findOne({ email }, '-password');
     }
+
+    if (user) {
+      return res.json({ success: true, user });
+    }
+
+    // Fallback to local users
+    const localUsers = getLocalUsers();
+    const localUser = localUsers.find(u => u.email === email);
+
+    if (!localUser) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const { password, ...userWithoutPassword } = localUser;
+    return res.json({ success: true, user: userWithoutPassword });
   } catch (err) {
     console.error('Error fetching user profile:', err);
     res.status(500).json({ success: false, message: 'Server error fetching profile.' });
@@ -954,7 +1026,7 @@ app.put('/api/admin/users/:email', async (req, res) => {
   try {
     const { email } = req.params;
     const { fullName, phone, gender, year, district, college, department } = req.body;
-    
+
     if (isMongoConnected) {
       const updated = await User.findOneAndUpdate(
         { email },
@@ -967,7 +1039,7 @@ app.put('/api/admin/users/:email', async (req, res) => {
       const localUsers = getLocalUsers();
       const index = localUsers.findIndex(u => u.email === email);
       if (index === -1) return res.status(404).json({ success: false, message: 'Student not found.' });
-      
+
       localUsers[index] = {
         ...localUsers[index],
         fullName, phone, gender, year, district, college, department
@@ -992,7 +1064,7 @@ app.delete('/api/admin/users/:email', async (req, res) => {
       const localUsers = getLocalUsers();
       const index = localUsers.findIndex(u => u.email === email);
       if (index === -1) return res.status(404).json({ success: false, message: 'Student not found.' });
-      
+
       localUsers.splice(index, 1);
       fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
       return res.json({ success: true, message: 'Student deleted locally!' });
@@ -1007,7 +1079,7 @@ app.post('/api/admin/users/:email/assign', async (req, res) => {
   try {
     const { email } = req.params;
     const { courses } = req.body; // array of courses
-    
+
     if (isMongoConnected) {
       const updated = await User.findOneAndUpdate(
         { email },
@@ -1020,7 +1092,7 @@ app.post('/api/admin/users/:email/assign', async (req, res) => {
       const localUsers = getLocalUsers();
       const index = localUsers.findIndex(u => u.email === email);
       if (index === -1) return res.status(404).json({ success: false, message: 'Student not found.' });
-      
+
       localUsers[index].assignedCourses = courses;
       fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
       return res.json({ success: true, message: 'Courses assigned locally!', courses: localUsers[index].assignedCourses });
@@ -1035,24 +1107,31 @@ app.put('/api/users/:email/profile', async (req, res) => {
   try {
     const { email } = req.params;
     const { fullName, college, department, year, profileImage } = req.body;
-    
+
+    let updated = null;
     if (isMongoConnected) {
-      const updated = await User.findOneAndUpdate(
+      updated = await User.findOneAndUpdate(
         { email },
         { fullName, college, department, year, profileImage },
         { new: true }
       );
-      if (!updated) return res.status(404).json({ success: false, message: 'Student not found.' });
-      return res.json({ success: true, message: 'Profile updated successfully!', user: updated });
-    } else {
-      const localUsers = getLocalUsers();
-      const index = localUsers.findIndex(u => u.email === email);
-      if (index === -1) return res.status(404).json({ success: false, message: 'Student not found.' });
-      
-      localUsers[index] = { ...localUsers[index], fullName, college, department, year, profileImage };
-      fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
-      return res.json({ success: true, message: 'Profile updated locally!', user: localUsers[index] });
     }
+
+    if (updated) {
+      return res.json({ success: true, message: 'Profile updated successfully!', user: updated });
+    }
+
+    // Fallback to local users
+    const localUsers = getLocalUsers();
+    const index = localUsers.findIndex(u => u.email === email);
+
+    if (index === -1) {
+      return res.status(404).json({ success: false, message: 'Student not found.' });
+    }
+
+    localUsers[index] = { ...localUsers[index], fullName, college, department, year, profileImage };
+    fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
+    return res.json({ success: true, message: 'Profile updated locally!', user: localUsers[index] });
   } catch (err) {
     console.error('Error updating profile:', err);
     res.status(500).json({ success: false, message: 'Server error updating profile.' });
@@ -1062,12 +1141,12 @@ app.put('/api/users/:email/profile', async (req, res) => {
 app.post('/api/subscriptions/course', async (req, res) => {
   try {
     const { user_id, course_id } = req.body;
-    
+
     if (!user_id || !course_id) {
       return res.json({ subscription_registration_status: false });
     }
 
-    const subscription_reference_id = `SUB_${Date.now()}_${Math.random().toString(36).substring(2,9)}`;
+    const subscription_reference_id = `SUB_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
     if (isMongoConnected) {
       let user = null;
@@ -1076,7 +1155,7 @@ app.post('/api/subscriptions/course', async (req, res) => {
       } else {
         try {
           user = await User.findById(user_id);
-        } catch(e) {}
+        } catch (e) { }
       }
 
       if (!user) {
@@ -1091,7 +1170,7 @@ app.post('/api/subscriptions/course', async (req, res) => {
     } else {
       const localUsers = getLocalUsers();
       const userIndex = localUsers.findIndex(u => u.email === user_id || String(u.id) === user_id);
-      
+
       if (userIndex === -1) {
         return res.json({ subscription_registration_status: false });
       }
@@ -1117,19 +1196,20 @@ app.post('/api/users/:email/progress', async (req, res) => {
   try {
     const { email } = req.params;
     const { courseId, videoUrl, midCourseQuizCompleted, finalQuizCompleted } = req.body;
-    
+
+    let user = null;
     if (isMongoConnected) {
-      const user = await User.findOne({ email });
-      if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
-      
+      user = await User.findOne({ email });
+    }
+
+    if (user) {
       let courseProgress = user.progress.find(p => String(p.courseId) === String(courseId));
       if (!courseProgress) {
         courseProgress = { courseId, watchedVideos: [], midCourseQuizCompleted: false, finalQuizCompleted: false };
         user.progress.push(courseProgress);
-        // Refetch to modify subdoc
         courseProgress = user.progress[user.progress.length - 1];
       }
-      
+
       if (videoUrl && !courseProgress.watchedVideos.includes(videoUrl)) {
         courseProgress.watchedVideos.push(videoUrl);
       }
@@ -1139,149 +1219,313 @@ app.post('/api/users/:email/progress', async (req, res) => {
       if (finalQuizCompleted !== undefined) {
         courseProgress.finalQuizCompleted = finalQuizCompleted;
       }
-      
+
       await user.save();
       return res.json({ success: true, progress: user.progress });
-    } else {
-      const localUsers = getLocalUsers();
-      const userIndex = localUsers.findIndex(u => u.email === email);
-      if (userIndex === -1) return res.status(404).json({ success: false, message: 'User not found.' });
-      
-      const user = localUsers[userIndex];
-      if (!user.progress) user.progress = [];
-      
-      let courseProgress = user.progress.find(p => String(p.courseId) === String(courseId));
-      if (!courseProgress) {
-        courseProgress = { courseId, watchedVideos: [], midCourseQuizCompleted: false, finalQuizCompleted: false };
-        user.progress.push(courseProgress);
-      }
-      
-      if (videoUrl && !courseProgress.watchedVideos.includes(videoUrl)) {
-        courseProgress.watchedVideos.push(videoUrl);
-      }
-      if (midCourseQuizCompleted !== undefined) {
-        courseProgress.midCourseQuizCompleted = midCourseQuizCompleted;
-      }
-      if (finalQuizCompleted !== undefined) {
-        courseProgress.finalQuizCompleted = finalQuizCompleted;
-      }
-      
-      fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
-      return res.json({ success: true, progress: user.progress });
     }
+
+    // Fallback to local users
+    const localUsers = getLocalUsers();
+    const userIndex = localUsers.findIndex(u => u.email === email);
+
+    if (userIndex === -1) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const localUser = localUsers[userIndex];
+    if (!localUser.progress) localUser.progress = [];
+
+    let courseProgress = localUser.progress.find(p => String(p.courseId) === String(courseId));
+    if (!courseProgress) {
+      courseProgress = { courseId, watchedVideos: [], midCourseQuizCompleted: false, finalQuizCompleted: false };
+      localUser.progress.push(courseProgress);
+    }
+
+    if (videoUrl && !courseProgress.watchedVideos.includes(videoUrl)) {
+      courseProgress.watchedVideos.push(videoUrl);
+    }
+    if (midCourseQuizCompleted !== undefined) {
+      courseProgress.midCourseQuizCompleted = midCourseQuizCompleted;
+    }
+    if (finalQuizCompleted !== undefined) {
+      courseProgress.finalQuizCompleted = finalQuizCompleted;
+    }
+
+    fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
+    return res.json({ success: true, progress: localUser.progress });
   } catch (err) {
     console.error('Error updating progress:', err);
     res.status(500).json({ success: false, message: 'Server error updating progress.' });
   }
 });
 
-// Utility function to check if a port is available
-const isPortAvailable = (port) => {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    
-    server.once('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        resolve(false);
-      } else {
-        resolve(false);
+// ============ Certificate Endpoints ============
+
+// Save/Upload Certificate
+app.post('/api/certificates/save', async (req, res) => {
+  try {
+    const { userEmail, userName, courseId, courseTitle } = req.body;
+
+    if (!userEmail || !courseId) {
+      return res.status(400).json({ success: false, message: 'Missing required fields.' });
+    }
+
+    const certificateData = {
+      id: `CERT_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      userId: userEmail,
+      userEmail,
+      userName,
+      courseId,
+      courseTitle,
+      issuedDate: new Date(),
+      status: 'generated',
+      downloadedAt: null
+    };
+
+    if (isMongoConnected) {
+      try {
+        const certificate = new Certificate(certificateData);
+        await certificate.save();
+        return res.json({ success: true, message: 'Certificate saved successfully.', certificateId: certificate._id });
+      } catch (mongoErr) {
+        console.warn('MongoDB save failed, falling back to local storage:', mongoErr.message);
       }
+    }
+
+    // Fallback to local storage
+    const certificates = getLocalCertificates();
+    certificates.push(certificateData);
+    saveLocalCertificates(certificates);
+
+    res.json({ success: true, message: 'Certificate saved successfully.', certificateId: certificateData.id });
+  } catch (err) {
+    console.error('Error saving certificate:', err);
+    res.status(500).json({ success: false, message: 'Server error saving certificate.' });
+  }
+});
+
+// Get Certificates for User
+app.get('/api/certificates/user/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    if (isMongoConnected) {
+      try {
+        const certificates = await Certificate.find({ userEmail: email }).sort({ issuedDate: -1 });
+        return res.json({ success: true, certificates });
+      } catch (mongoErr) {
+        console.warn('MongoDB query failed, falling back to local storage:', mongoErr.message);
+      }
+    }
+
+    // Fallback to local storage
+    const certificates = getLocalCertificates().filter(c => c.userEmail === email).sort((a, b) => new Date(b.issuedDate) - new Date(a.issuedDate));
+
+    res.json({ success: true, certificates });
+  } catch (err) {
+    console.error('Error fetching certificates:', err);
+    res.status(500).json({ success: false, message: 'Server error fetching certificates.' });
+  }
+});
+
+// Mark Certificate as Downloaded
+app.post('/api/certificates/:id/mark-downloaded', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (isMongoConnected) {
+      try {
+        const certificate = await Certificate.findByIdAndUpdate(id, { downloadedAt: new Date(), status: 'downloaded' }, { new: true });
+        if (certificate) return res.json({ success: true, certificate });
+      } catch (mongoErr) {
+        console.warn('MongoDB update failed, falling back to local storage:', mongoErr.message);
+      }
+    }
+
+    // Fallback to local storage
+    const certificates = getLocalCertificates();
+    const certIndex = certificates.findIndex(c => c.id === id);
+    if (certIndex !== -1) {
+      certificates[certIndex].downloadedAt = new Date();
+      certificates[certIndex].status = 'downloaded';
+      saveLocalCertificates(certificates);
+      return res.json({ success: true, certificate: certificates[certIndex] });
+    }
+
+    res.status(404).json({ success: false, message: 'Certificate not found.' });
+  } catch (err) {
+    console.error('Error updating certificate:', err);
+    res.status(500).json({ success: false, message: 'Server error updating certificate.' });
+  }
+});
+
+// ============ TNSkill (skilldevelopment.tn.gov.in) / KP API Integration ============
+
+// Middleware to check Bearer token for TNSkill routes
+const tnskillAuthMiddleware = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (req.path.includes('subscribe')) return res.json({ subscription_registration_status: false });
+    if (req.path.includes('access')) return res.json({ access_status: false });
+    return res.json({ progress_percentage: "0.00", certificate_issued: "false", assessment_status: "false", course_complete: "false" });
+  }
+
+  const token = authHeader.split(' ')[1];
+  // Verify token from environment variable TNSKILL_API_TOKEN
+  const expectedToken = process.env.TNSKILL_API_TOKEN || 'default_tnskill_token';
+  if (token !== expectedToken) {
+    if (req.path.includes('subscribe')) return res.json({ subscription_registration_status: false });
+    if (req.path.includes('access')) return res.json({ access_status: false });
+    return res.json({ progress_percentage: "0.00", certificate_issued: "false", assessment_status: "false", course_complete: "false" });
+  }
+
+  next();
+};
+
+app.post('/api/course/subscribe/', tnskillAuthMiddleware, async (req, res) => {
+  try {
+    const { user_id, course_id } = req.body;
+    if (!user_id || !course_id) {
+      return res.json({ subscription_registration_status: false });
+    }
+
+    const subscription_reference_id = `SUB_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    if (isMongoConnected) {
+      let user = await User.findOne({ email: user_id });
+      if (!user) {
+        try { user = await User.findById(user_id); } catch (e) { }
+      }
+
+      if (!user) {
+        return res.json({ subscription_registration_status: false });
+      }
+
+      if (!user.assignedCourses.includes(course_id)) {
+        user.assignedCourses.push(course_id);
+        await user.save();
+      }
+      return res.json({ subscription_registration_status: true, subscription_reference_id });
+    } else {
+      const localUsers = getLocalUsers();
+      const userIndex = localUsers.findIndex(u => u.email === user_id || String(u.id) === user_id);
+
+      if (userIndex === -1) {
+        return res.json({ subscription_registration_status: false });
+      }
+
+      if (!localUsers[userIndex].assignedCourses) {
+        localUsers[userIndex].assignedCourses = [];
+      }
+      if (!localUsers[userIndex].assignedCourses.includes(course_id)) {
+        localUsers[userIndex].assignedCourses.push(course_id);
+        fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
+      }
+      return res.json({ subscription_registration_status: true, subscription_reference_id });
+    }
+  } catch (error) {
+    console.error('TNSkill Subscribe Error:', error);
+    return res.json({ subscription_registration_status: false });
+  }
+});
+
+app.post('/api/course/access/', tnskillAuthMiddleware, async (req, res) => {
+  try {
+    const { user_id, course_id } = req.body;
+    if (!user_id || !course_id) {
+      return res.json({ access_status: false });
+    }
+
+    let hasAccess = false;
+
+    if (isMongoConnected) {
+      let user = await User.findOne({ email: user_id });
+      if (!user) {
+        try { user = await User.findById(user_id); } catch (e) { }
+      }
+      if (user && user.assignedCourses.includes(course_id)) hasAccess = true;
+    } else {
+      const localUsers = getLocalUsers();
+      const user = localUsers.find(u => u.email === user_id || String(u.id) === user_id);
+      if (user && user.assignedCourses && user.assignedCourses.includes(course_id)) hasAccess = true;
+    }
+
+    if (hasAccess) {
+      // In production, adjust this URL to map to the actual frontend deployment
+      const frontend_url = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const access_url = `${frontend_url}/student-dashboard?course=${course_id}`;
+      return res.json({ access_status: true, access_url });
+    }
+
+    return res.json({ access_status: false });
+  } catch (error) {
+    console.error('TNSkill Access Error:', error);
+    return res.json({ access_status: false });
+  }
+});
+
+app.post('/api/student/progress', tnskillAuthMiddleware, async (req, res) => {
+  try {
+    const { user_id, course_id } = req.body;
+
+    let progressData = null;
+    if (isMongoConnected) {
+      let user = await User.findOne({ email: user_id });
+      if (!user) {
+        try { user = await User.findById(user_id); } catch (e) { }
+      }
+      if (user && user.progress) {
+        progressData = user.progress.find(p => String(p.courseId) === String(course_id));
+      }
+    } else {
+      const localUsers = getLocalUsers();
+      const user = localUsers.find(u => u.email === user_id || String(u.id) === user_id);
+      if (user && user.progress) {
+        progressData = user.progress.find(p => String(p.courseId) === String(course_id));
+      }
+    }
+
+    if (progressData) {
+      let percentage = 10.0; // Base progress
+      if (progressData.midCourseQuizCompleted) percentage += 40.0;
+      if (progressData.finalQuizCompleted) percentage += 50.0;
+
+      const isComplete = progressData.finalQuizCompleted;
+
+      return res.json({
+        progress_percentage: percentage.toFixed(2),
+        certificate_issued: isComplete ? "true" : "false",
+        assessment_status: isComplete ? "true" : "false",
+        course_complete: isComplete ? "true" : "false"
+      });
+    }
+
+    return res.json({
+      progress_percentage: "0.00",
+      certificate_issued: "false",
+      assessment_status: "false",
+      course_complete: "false"
     });
-    
-    server.once('listening', () => {
-      server.close();
-      resolve(true);
+  } catch (error) {
+    console.error('NM Progress Error:', error);
+    return res.json({
+      progress_percentage: "0.00",
+      certificate_issued: "false",
+      assessment_status: "false",
+      course_complete: "false"
     });
-    
-    server.listen(port);
+  }
+});
+
+const startServer = async () => {
+  const PORT = process.env.PORT || 5000;
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server is running on port ${PORT}`);
   });
 };
 
-// Utility function to find the next available port
-const findAvailablePort = async (startPort, maxAttempts) => {
-  for (let i = 0; i < maxAttempts; i++) {
-    const portToTry = startPort + i;
-    const available = await isPortAvailable(portToTry);
-    if (available) {
-      return portToTry;
-    }
-  }
-  return null;
-};
-
-const startServer = async () => {
-  if (serverStarted) return;
-
-  try {
-    // Check if the default port is available
-    const defaultPortAvailable = await isPortAvailable(DEFAULT_PORT);
-    
-    if (!defaultPortAvailable) {
-      console.warn(`⚠️  Port ${DEFAULT_PORT} is already in use. Searching for an available port...`);
-      const availablePort = await findAvailablePort(DEFAULT_PORT, MAX_PORT_ATTEMPTS);
-      
-      if (!availablePort) {
-        console.error(`\n❌ ERROR: No available ports found in range ${DEFAULT_PORT}-${DEFAULT_PORT + MAX_PORT_ATTEMPTS - 1}`);
-        console.error('Please stop other Node.js processes and try again.');
-        if (process.platform === 'win32') {
-          try {
-            const output = execSync(`netstat -ano | findstr :${DEFAULT_PORT}`, { encoding: 'utf8' });
-            console.error(`\nProcesses using port ${DEFAULT_PORT}:\n${output.trim()}`);
-            console.error(`\nTo free the port, run: taskkill /PID <PID> /F`);
-          } catch (e) {
-            // ignore
-          }
-        }
-        process.exit(1);
-      }
-      
-      PORT = availablePort;
-      console.log(`✅ Using port ${PORT} instead (${DEFAULT_PORT} was occupied)`);
-    }
-
-    // Now listen on the determined port
-    server = app.listen(PORT, () => {
-      serverStarted = true;
-      console.log(`\n🚀 Server is running on http://localhost:${PORT}`);
-      if (PORT !== DEFAULT_PORT) {
-        console.log(`   (Default port ${DEFAULT_PORT} was already in use)`);
-      }
-    });
-
-    server.on('error', (err) => {
-      if (err && err.code === 'EADDRINUSE') {
-        console.error(`\n❌ ERROR: Port ${PORT} is already in use. Backend cannot start on this port.`);
-        if (process.platform === 'win32') {
-          try {
-            const output = execSync(`netstat -ano | findstr :${PORT}`, { encoding: 'utf8' });
-            console.error(`\nActive processes:\n${output.trim()}`);
-            console.error(`\nTo free the port, run: taskkill /PID <PID> /F`);
-          } catch (e) {
-            console.error('Could not determine which process is using this port.');
-          }
-        } else {
-          try {
-            const output = execSync(`lsof -i :${PORT} -Pn`, { encoding: 'utf8' });
-            console.error(`\nActive processes:\n${output.trim()}`);
-            console.error(`\nTo free the port, run: kill <PID>`);
-          } catch (e) {
-            console.error('Could not determine which process is using this port.');
-          }
-        }
-        process.exit(1);
-      }
-      console.error('Server error:', err);
-      process.exit(1);
-    });
-
-    server.on('close', () => {
-      console.log('\n⚠️  Server closed');
-    });
-  } catch (err) {
-    console.error('Failed to start server:', err);
-    process.exit(1);
-  }
-};
-
 // Keep the process alive — prevents Node from exiting when mongoose disconnects
-setInterval(() => {}, 1000 * 60 * 30); // 30-min no-op timer
+setInterval(() => { }, 1000 * 60 * 30); // 30-min no-op timer
+
+// Trigger nodemon restart
