@@ -674,7 +674,7 @@
 }
 
 .certificateStepsRow {
-  display: inline-flex;
+  display: flex;
   gap: 16px;
   background: #f8fafc;
   padding: 12px 24px;
@@ -684,6 +684,17 @@
   color: #475569;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.certificateStepsRow span {
+  white-space: nowrap;
+}
+
+.arrowIcon {
+  display: inline;
 }
 
 .certificateField {
@@ -743,7 +754,95 @@
   max-width: 1050px;
 }
 
+/* Profile View Styles */
+.profileDetailsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.profileField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.profileLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.profileValue {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+  word-break: break-all;
+  overflow-wrap: break-word;
+}
+
+.mobileEditBtn {
+  width: 100%;
+  padding: 14px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563EB;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 15px;
+  transition: all 0.2s;
+  margin-bottom: 8px;
+}
+
+.mobileEditBtn:hover {
+  background: rgba(37, 99, 235, 0.15);
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inputLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.inputField {
+  font-size: 15px;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+}
+
 @media (max-width: 768px) {
+  .dashboardContainer {
+    padding: 0 !important;
+    gap: 16px !important;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .premiumCard {
+    padding: 20px !important;
+    border-radius: 20px !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+    border: 1px solid rgba(0,0,0,0.05);
+  }
+
   .certificateWrapper {
     padding: 16px;
     gap: 14px;
@@ -761,6 +860,11 @@
     flex-wrap: wrap;
     justify-content: center;
     text-align: center;
+    flex-direction: column;
+  }
+
+  .arrowIcon {
+    display: none;
   }
 
   .downloadCertBtn {
@@ -797,7 +901,9 @@
     padding: 8px 10px;
     gap: 6px;
     font-size: 11px;
+    flex-direction: column;
   }
+
 
   .completionCertScale {
     transform: scale(0.45);

@@ -66,65 +66,69 @@ const CertificateCard = ({ user, course }) => {
   };
 
   return (
-    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '16px', padding: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', overflowX: 'auto' }}>
-      <div
-        ref={certificateRef}
-        style={{
-          position: 'relative',
-          width: '100%',
-          minWidth: '800px',
-          maxWidth: '1050px',
-          aspectRatio: '1458 / 1024',
-          background: '#fff',
-          overflow: 'hidden',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-        }}
-      >
-        <img
-          src="/certificate.png"
-          alt="Certificate"
+    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '16px', padding: '30px', display: 'flex', flexDirection: 'column', gap: '20px', overflowX: 'auto', width: '100%', boxSizing: 'border-box' }}>
+      <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+        <div
+          ref={certificateRef}
           style={{
-            display: 'block',
+            position: 'relative',
             width: '100%',
-            height: '100%',
-            objectFit: 'contain',
-            userSelect: 'none',
-            pointerEvents: 'none'
+            maxWidth: '1050px',
+            aspectRatio: '1458 / 1024',
+            background: '#fff',
+            overflow: 'hidden',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            containerType: 'inline-size'
           }}
-        />
+        >
+          <img
+            src="/certificate.png"
+            alt="Certificate"
+            style={{
+              display: 'block',
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              userSelect: 'none',
+              pointerEvents: 'none'
+            }}
+          />
 
-        <div style={{ ...certificateFieldStyle, left: '34.7%', top: '31.3%', width: '31.5%', height: '4.5%', fontSize: '22px' }}>
-          {studentName}
-        </div>
+          <div style={{ ...certificateFieldStyle, left: '34.7%', top: '31.3%', width: '31.5%', height: '4.5%', fontSize: 'min(22px, 2.09cqw)' }}>
+            {studentName}
+          </div>
 
-        <div style={{ ...certificateFieldStyle, left: '18.2%', top: '39.2%', width: '20.9%', height: '4.2%', fontSize: '17px' }}>
-          {institutionName}
-        </div>
+          <div style={{ ...certificateFieldStyle, left: '18.2%', top: '39.2%', width: '20.9%', height: '4.2%', fontSize: 'min(17px, 1.61cqw)' }}>
+            {institutionName}
+          </div>
 
-        <div style={{ ...certificateFieldStyle, left: '51.3%', top: '39.2%', width: '16.9%', height: '4.2%', fontSize: '17px' }}>
-          {departmentName}
-        </div>
+          <div style={{ ...certificateFieldStyle, left: '51.3%', top: '39.2%', width: '16.9%', height: '4.2%', fontSize: 'min(17px, 1.61cqw)' }}>
+            {departmentName}
+          </div>
 
-        <div style={{ ...certificateFieldStyle, left: '23.4%', top: '49.3%', width: '53.2%', height: '4.8%', fontSize: '19px' }}>
-          {courseName}
-        </div>
+          <div style={{ ...certificateFieldStyle, left: '23.4%', top: '49.3%', width: '53.2%', height: '4.8%', fontSize: 'min(19px, 1.8cqw)' }}>
+            {courseName}
+          </div>
 
-        <div style={{ ...certificateFieldStyle, left: '66.5%', top: '60.4%', width: '13.5%', height: '4.2%', fontSize: '17px' }}>
-          {yearValue}
-        </div>
+          <div style={{ ...certificateFieldStyle, left: '66.5%', top: '60.4%', width: '13.5%', height: '4.2%', fontSize: 'min(17px, 1.61cqw)' }}>
+            {yearValue}
+          </div>
 
-        <div style={{ ...certificateFieldStyle, left: '35.1%', bottom: '17.4%', width: '18.4%', height: '3.6%', fontSize: '17px' }}>
-          {trainingDuration}
-        </div>
+          <div style={{ ...certificateFieldStyle, left: '35.1%', bottom: '17.4%', width: '18.4%', height: '3.6%', fontSize: 'min(17px, 1.61cqw)' }}>
+            {trainingDuration}
+          </div>
 
-        <div style={{ ...certificateFieldStyle, right: '14.5%', bottom: '17.4%', width: '17.4%', height: '3.6%', fontSize: '17px' }}>
-          {issueDate}
+          <div style={{ ...certificateFieldStyle, right: '14.5%', bottom: '17.4%', width: '17.4%', height: '3.6%', fontSize: 'min(17px, 1.61cqw)' }}>
+            {issueDate}
+          </div>
         </div>
       </div>
 
-      <button onClick={handleDownload} style={{ padding: '12px 24px', fontSize: '15px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', marginTop: '10px' }}>
-        Download Certificate
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <button onClick={handleDownload} style={{ padding: '12px 24px', fontSize: '15px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', marginTop: '10px' }}>
+          Download Certificate
+        </button>
+      </div>
     </div>
   );
 };
@@ -248,15 +252,9 @@ export default function StudentDashboard() {
   if (activeTab === 'profile') {
     return (
       <div className={styles.dashboardContainer} style={{ padding: '20px' }}>
-        <div className={styles.premiumCard} style={{ padding: '30px', maxWidth: '700px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '15px' }}>
-            <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#111827', margin: 0 }}>Student Profile Details</h3>
-            {!isEditingProfile && (
-              <button style={{ padding: '6px 16px', fontSize: '13px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }} onClick={handleEditProfile}>Edit Profile</button>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
+        <div className={styles.premiumCard} style={{ padding: '30px', maxWidth: '700px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
             {(() => {
               const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
               const serverBaseUrl = API_BASE_URL.replace('/api', '');
@@ -267,38 +265,50 @@ export default function StudentDashboard() {
                     : `${serverBaseUrl}${rawImg}`)
                 : '';
               return (
-                <div style={{ width: '100px', height: '100px', borderRadius: '50%', backgroundColor: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #3b82f6', overflow: 'hidden', flexShrink: 0 }}>
+                <div style={{ width: '120px', height: '120px', borderRadius: '50%', backgroundColor: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '4px solid #e0e7ff', overflow: 'hidden', flexShrink: 0, boxShadow: '0 10px 25px -5px rgba(37,99,235,0.2)' }}>
                   {resolvedImg ? (
                     <img src={resolvedImg} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
-                    <span style={{ fontSize: '36px', color: '#6b7280', fontWeight: 'bold' }}>{user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}</span>
+                    <span style={{ fontSize: '42px', color: '#6b7280', fontWeight: 'bold' }}>{user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}</span>
                   )}
                 </div>
               );
             })()}
+            {!isEditingProfile && (
+              <div style={{ textAlign: 'center' }}>
+                <h3 style={{ fontSize: '24px', fontWeight: '800', color: '#111827', margin: '0 0 4px 0' }}>{user.fullName || 'Technical Student'}</h3>
+                <p style={{ margin: 0, color: '#64748b', fontSize: '14px', fontWeight: 600 }}>{user.department || 'Department'} • {user.year || 'Year'}</p>
+              </div>
+            )}
           </div>
 
+          {!isEditingProfile && (
+            <button className={styles.mobileEditBtn} onClick={handleEditProfile}>
+              Edit Profile
+            </button>
+          )}
+
           {isEditingProfile ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <label style={{ fontSize: '13px', fontWeight: '600', color: '#6b7280' }}>Profile Image</label>
-                <input type="file" accept="image/*" onChange={handleProfileImageChange} style={{ fontSize: '14px', padding: '8px', border: '1px solid #d1d5db', borderRadius: '8px', background: '#f9fafb' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className={styles.inputGroup}>
+                <label className={styles.inputLabel}>Profile Image</label>
+                <input type="file" accept="image/*" onChange={handleProfileImageChange} className={styles.inputField} />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <label style={{ fontSize: '13px', fontWeight: '600', color: '#6b7280' }}>Full Name</label>
-                <input type="text" value={profileForm.fullName} onChange={(e) => setProfileForm(prev => ({ ...prev, fullName: e.target.value }))} style={{ fontSize: '14px', padding: '10px', border: '1px solid #d1d5db', borderRadius: '8px', background: '#f9fafb' }} />
+              <div className={styles.inputGroup}>
+                <label className={styles.inputLabel}>Full Name</label>
+                <input type="text" value={profileForm.fullName} onChange={(e) => setProfileForm(prev => ({ ...prev, fullName: e.target.value }))} className={styles.inputField} />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <label style={{ fontSize: '13px', fontWeight: '600', color: '#6b7280' }}>College</label>
-                <input type="text" value={profileForm.college} onChange={(e) => setProfileForm(prev => ({ ...prev, college: e.target.value }))} style={{ fontSize: '14px', padding: '10px', border: '1px solid #d1d5db', borderRadius: '8px', background: '#f9fafb' }} />
+              <div className={styles.inputGroup}>
+                <label className={styles.inputLabel}>College</label>
+                <input type="text" value={profileForm.college} onChange={(e) => setProfileForm(prev => ({ ...prev, college: e.target.value }))} className={styles.inputField} />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <label style={{ fontSize: '13px', fontWeight: '600', color: '#6b7280' }}>Department</label>
-                <input type="text" value={profileForm.department} onChange={(e) => setProfileForm(prev => ({ ...prev, department: e.target.value }))} style={{ fontSize: '14px', padding: '10px', border: '1px solid #d1d5db', borderRadius: '8px', background: '#f9fafb' }} />
+              <div className={styles.inputGroup}>
+                <label className={styles.inputLabel}>Department</label>
+                <input type="text" value={profileForm.department} onChange={(e) => setProfileForm(prev => ({ ...prev, department: e.target.value }))} className={styles.inputField} />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <label style={{ fontSize: '13px', fontWeight: '600', color: '#6b7280' }}>Year of Study</label>
-                <select value={profileForm.year} onChange={(e) => setProfileForm(prev => ({ ...prev, year: e.target.value }))} style={{ fontSize: '14px', padding: '10px', border: '1px solid #d1d5db', borderRadius: '8px', background: '#f9fafb' }}>
+              <div className={styles.inputGroup}>
+                <label className={styles.inputLabel}>Year of Study</label>
+                <select value={profileForm.year} onChange={(e) => setProfileForm(prev => ({ ...prev, year: e.target.value }))} className={styles.inputField}>
                   <option value="">Select Year</option>
                   <option value="I Year">I Year</option>
                   <option value="II Year">II Year</option>
@@ -306,33 +316,37 @@ export default function StudentDashboard() {
                   <option value="IV Year">IV Year</option>
                 </select>
               </div>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                <button style={{ flex: 1, padding: '10px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }} onClick={handleSaveProfile}>Save Changes</button>
-                <button style={{ flex: 1, padding: '10px', background: '#f3f4f6', color: '#111827', border: '1px solid #d1d5db', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }} onClick={() => setIsEditingProfile(false)}>Cancel</button>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '16px', flexDirection: 'column' }}>
+                <button style={{ padding: '14px', background: '#2563EB', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }} onClick={handleSaveProfile}>Save Changes</button>
+                <button style={{ padding: '14px', background: '#f8fafc', color: '#475569', border: '1px solid #e2e8f0', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }} onClick={() => setIsEditingProfile(false)}>Cancel</button>
               </div>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '15px', fontSize: '14px' }}>
-              <span style={{ fontWeight: '600', color: '#6b7280' }}>Full Name:</span>
-              <span style={{ fontWeight: '700', color: '#111827' }}>{user.fullName || 'Technical Student'}</span>
-
-              <span style={{ fontWeight: '600', color: '#6b7280' }}>Email Address:</span>
-              <span style={{ fontWeight: '700', color: '#111827' }}>{user.email || 'N/A'}</span>
-
-              <span style={{ fontWeight: '600', color: '#6b7280' }}>Phone Number:</span>
-              <span style={{ fontWeight: '700', color: '#111827' }}>{user.phone || 'N/A'}</span>
-
-              <span style={{ fontWeight: '600', color: '#6b7280' }}>College:</span>
-              <span style={{ fontWeight: '700', color: '#111827' }}>{user.college || 'N/A'}</span>
-
-              <span style={{ fontWeight: '600', color: '#6b7280' }}>Department:</span>
-              <span style={{ fontWeight: '700', color: '#111827' }}>{user.department || 'N/A'}</span>
-
-              <span style={{ fontWeight: '600', color: '#6b7280' }}>Year of Study:</span>
-              <span style={{ fontWeight: '700', color: '#111827' }}>{user.year || 'N/A'}</span>
-
-              <span style={{ fontWeight: '600', color: '#6b7280' }}>Gender:</span>
-              <span style={{ fontWeight: '700', color: '#111827' }}>{user.gender || 'N/A'}</span>
+            <div className={styles.profileDetailsGrid}>
+              <div className={styles.profileField}>
+                <span className={styles.profileLabel}>Email Address</span>
+                <span className={styles.profileValue}>{user.email || 'N/A'}</span>
+              </div>
+              <div className={styles.profileField}>
+                <span className={styles.profileLabel}>Phone Number</span>
+                <span className={styles.profileValue}>{user.phone || 'N/A'}</span>
+              </div>
+              <div className={styles.profileField}>
+                <span className={styles.profileLabel}>College</span>
+                <span className={styles.profileValue}>{user.college || 'N/A'}</span>
+              </div>
+              <div className={styles.profileField}>
+                <span className={styles.profileLabel}>Department</span>
+                <span className={styles.profileValue}>{user.department || 'N/A'}</span>
+              </div>
+              <div className={styles.profileField}>
+                <span className={styles.profileLabel}>Year of Study</span>
+                <span className={styles.profileValue}>{user.year || 'N/A'}</span>
+              </div>
+              <div className={styles.profileField}>
+                <span className={styles.profileLabel}>Gender</span>
+                <span className={styles.profileValue}>{user.gender || 'N/A'}</span>
+              </div>
             </div>
           )}
         </div>
@@ -357,16 +371,16 @@ export default function StudentDashboard() {
             <p style={{ color: '#6b7280', fontSize: '16px', maxWidth: '600px', margin: '0 auto 20px auto' }}>
               To automatically unlock your certificate, you must watch all <strong>12 course videos</strong>, pass the <strong>Mid-Course Quiz</strong> (after Video 5), and pass the <strong>Final Assessment Quiz</strong> (after Video 12).
             </p>
-            <div style={{ display: 'inline-flex', gap: '16px', background: '#f8fafc', padding: '12px 24px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#475569' }}>
+            <div className={styles.certificateStepsRow}>
               <span>1️⃣ Watch Videos 1–5</span>
-              <span>➡️</span>
+              <span className={styles.arrowIcon}>➡️</span>
               <span>2️⃣ Mid Quiz</span>
-              <span>➡️</span>
+              <span className={styles.arrowIcon}>➡️</span>
               <span>3️⃣ Watch Videos 6–12</span>
-              <span>➡️</span>
+              <span className={styles.arrowIcon}>➡️</span>
               <span>4️⃣ Final Quiz</span>
-              <span>➡️</span>
-              <span>5️⃣ 🎓 Certificate</span>
+              <span className={styles.arrowIcon}>➡️</span>
+              <span style={{ fontWeight: 'bold' }}>5️⃣ 🎓 Certificate</span>
             </div>
           </div>
         </div>

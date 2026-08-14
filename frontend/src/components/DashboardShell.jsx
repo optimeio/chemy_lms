@@ -75,15 +75,24 @@ export default function DashboardShell() {
       <div className={styles.mobileHeader}>
         <div className={styles.brandBlock} style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
           <img src="/chemy2.png" alt="Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-          <span className={styles.brandName} style={{ fontSize: '18px' }}>CHEMY LMS</span>
+          <span className={styles.brandName} style={{ fontSize: '18px' }}>CHEMY</span>
         </div>
-        <button 
-          className={styles.mobileMenuButton} 
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          aria-label="Toggle Menu"
-        >
-          {isMobileMenuOpen ? '✕' : '☰'}
-        </button>
+        <div className={styles.mobileHeaderControls}>
+          <button type="button" className={styles.iconButton} aria-label="View notifications">
+            🔔
+          </button>
+          {(() => {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
+            const serverBaseUrl = API_BASE_URL.replace('/api', '');
+            const rawImg = user.profileImage;
+            const avatarSrc = rawImg
+              ? (rawImg.startsWith('http') || rawImg.startsWith('blob:') || rawImg.startsWith('data:')
+                  ? rawImg
+                  : `${serverBaseUrl}${rawImg}`)
+              : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName)}&background=2563EB&color=fff`;
+            return <img src={avatarSrc} alt="Profile Avatar" className={styles.avatar} style={{ width: '36px', height: '36px' }} onClick={() => handleSidebarAction(null, 'profile')} />;
+          })()}
+        </div>
       </div>
 
       <aside className={`${styles.sidebar} ${isMobileMenuOpen ? styles.sidebarOpen : ''}`} aria-label="Dashboard navigation">
@@ -135,23 +144,26 @@ export default function DashboardShell() {
                 aria-label="Global search"
               />
             </div>
-            <button type="button" className={styles.iconButton} aria-label="View notifications">
-              🔔
-            </button>
-            <button type="button" className={styles.iconButton} aria-label="Messages">
-              ✉️
-            </button>
-            {(() => {
-              const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
-              const serverBaseUrl = API_BASE_URL.replace('/api', '');
-              const rawImg = user.profileImage;
-              const avatarSrc = rawImg
-                ? (rawImg.startsWith('http') || rawImg.startsWith('blob:') || rawImg.startsWith('data:')
-                    ? rawImg
-                    : `${serverBaseUrl}${rawImg}`)
-                : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName)}&background=2563EB&color=fff`;
-              return <img src={avatarSrc} alt="Profile Avatar" className={styles.avatar} />;
-            })()}
+            {/* Desktop only controls */}
+            <div className={styles.desktopControls}>
+              <button type="button" className={styles.iconButton} aria-label="View notifications">
+                🔔
+              </button>
+              <button type="button" className={styles.iconButton} aria-label="Messages">
+                ✉️
+              </button>
+              {(() => {
+                const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
+                const serverBaseUrl = API_BASE_URL.replace('/api', '');
+                const rawImg = user.profileImage;
+                const avatarSrc = rawImg
+                  ? (rawImg.startsWith('http') || rawImg.startsWith('blob:') || rawImg.startsWith('data:')
+                      ? rawImg
+                      : `${serverBaseUrl}${rawImg}`)
+                  : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName)}&background=2563EB&color=fff`;
+                return <img src={avatarSrc} alt="Profile Avatar" className={styles.avatar} onClick={() => handleSidebarAction(null, 'profile')} />;
+              })()}
+            </div>
           </div>
         </header>
 
@@ -159,6 +171,28 @@ export default function DashboardShell() {
           <Outlet context={{ activeTab }} />
         </Suspense>
       </section>
+
+      {/* Mobile Bottom Navigation */}
+      {user.role !== 'Super Admin' && (
+        <nav className={styles.mobileBottomNav}>
+          <button className={activeTab === 'dashboard' ? styles.bottomNavBtnActive : styles.bottomNavBtn} onClick={() => handleSidebarAction(null, 'dashboard')}>
+            <span className={styles.bottomNavIcon}>🏠</span>
+            <span>Home</span>
+          </button>
+          <button className={activeTab === 'courses' ? styles.bottomNavBtnActive : styles.bottomNavBtn} onClick={() => handleSidebarAction(null, 'courses')}>
+            <span className={styles.bottomNavIcon}>📚</span>
+            <span>Courses</span>
+          </button>
+          <button className={activeTab === 'certificates' ? styles.bottomNavBtnActive : styles.bottomNavBtn} onClick={() => handleSidebarAction(null, 'certificates')}>
+            <span className={styles.bottomNavIcon}>🎓</span>
+            <span>Awards</span>
+          </button>
+          <button className={activeTab === 'profile' ? styles.bottomNavBtnActive : styles.bottomNavBtn} onClick={() => handleSidebarAction(null, 'profile')}>
+            <span className={styles.bottomNavIcon}>👤</span>
+            <span>Profile</span>
+          </button>
+        </nav>
+      )}
     </main>
   );
 }
