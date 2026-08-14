@@ -10,12 +10,26 @@ const CertificateCard = ({ user, course }) => {
   const handleDownload = async () => {
     if (certificateRef.current) {
       try {
-        const canvas = await html2canvas(certificateRef.current, { scale: 2 });
+        const canvas = await html2canvas(certificateRef.current, { scale: 2, useCORS: true });
         const imgData = canvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = imgData;
         link.download = `${user.fullName}_${course.title}_Certificate.png`;
         link.click();
+        console.log('Certificate downloaded:', link.download);
+        
+        // Save certificate record to backend
+        try {
+          await apiService.post('/certificates/save', {
+            userEmail: user.email,
+            userName: user.fullName,
+            courseId: course._id || course.id,
+            courseTitle: course.title
+          });
+          console.log('Certificate record saved to backend');
+        } catch (apiErr) {
+          console.warn('Failed to save certificate record:', apiErr);
+        }
       } catch (err) {
         console.error('Error downloading certificate', err);
       }
@@ -23,41 +37,87 @@ const CertificateCard = ({ user, course }) => {
   };
 
   const currentDate = new Date().toLocaleDateString('en-GB');
+  const yearValue = user?.year || '2026-2027';
+  const studentName = user?.fullName || 'Tharaneesh K.P.';
+  const departmentName = user?.department || 'CSE';
+  const institutionName = user?.college || 'Sona College of Technology';
+  const courseName = course?.title || 'PCB DESIGN';
+  const trainingDuration = course?.duration || '00 months';
+  const issueDate = currentDate || '13/08/2026';
+
+  const certificateFieldStyle = {
+    position: 'absolute',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#111111',
+    fontWeight: 700,
+    fontFamily: 'serif',
+    letterSpacing: '0.01em',
+    textAlign: 'center',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    pointerEvents: 'none'
+  };
 
   return (
     <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', overflowX: 'auto' }}>
-      <div 
+      <div
         ref={certificateRef}
-        style={{ 
-          position: 'relative', 
-          width: '800px', 
-          minWidth: '800px',
-          height: '600px', 
-          backgroundImage: 'url(/certificate-template.png)', 
-          backgroundSize: 'cover', 
-          backgroundPosition: 'center',
-          fontFamily: 'serif',
-          color: '#000',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-          backgroundRepeat: 'no-repeat'
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: '1050px',
+          aspectRatio: '1458 / 1024',
+          background: '#fff',
+          overflow: 'hidden',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
         }}
       >
-        {/* These positions are estimates based on the provided template and may need adjustment */}
-        <div style={{ position: 'absolute', top: '245px', left: '280px', width: '450px', fontSize: '18px', fontWeight: 'bold' }}>{user.fullName}</div>
-        
-        <div style={{ position: 'absolute', top: '285px', left: '80px', width: '300px', fontSize: '16px', textAlign: 'center' }}>{user.department}</div>
-        <div style={{ position: 'absolute', top: '285px', left: '460px', width: '250px', fontSize: '16px', textAlign: 'center' }}>{user.college}</div>
-        
-        <div style={{ position: 'absolute', top: '325px', left: '50px', width: '250px', fontSize: '16px', textAlign: 'center' }}>{user.year}</div>
-        <div style={{ position: 'absolute', top: '325px', left: '330px', width: '380px', fontSize: '16px', textAlign: 'center', fontWeight: 'bold' }}>{course.title}</div>
-        
-        <div style={{ position: 'absolute', top: '385px', left: '50px', width: '350px', fontSize: '16px', textAlign: 'center' }}>2025-2026</div>
+        <img
+          src="/certificate.png"
+          alt="Certificate"
+          style={{
+            display: 'block',
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            userSelect: 'none',
+            pointerEvents: 'none'
+          }}
+        />
 
-        <div style={{ position: 'absolute', top: '445px', left: '210px', width: '200px', fontSize: '16px' }}>40 Hours</div>
-        <div style={{ position: 'absolute', top: '495px', left: '150px', width: '200px', fontSize: '16px' }}>{currentDate}</div>
+        <div style={{ ...certificateFieldStyle, left: '34.7%', top: '31.3%', width: '31.5%', height: '4.5%', fontSize: '22px' }}>
+          {studentName}
+        </div>
+
+        <div style={{ ...certificateFieldStyle, left: '18.2%', top: '39.2%', width: '20.9%', height: '4.2%', fontSize: '17px' }}>
+          {institutionName}
+        </div>
+
+        <div style={{ ...certificateFieldStyle, left: '51.3%', top: '39.2%', width: '16.9%', height: '4.2%', fontSize: '17px' }}>
+          {departmentName}
+        </div>
+
+        <div style={{ ...certificateFieldStyle, left: '23.4%', top: '49.3%', width: '53.2%', height: '4.8%', fontSize: '19px' }}>
+          {courseName}
+        </div>
+
+        <div style={{ ...certificateFieldStyle, left: '66.5%', top: '60.4%', width: '13.5%', height: '4.2%', fontSize: '17px' }}>
+          {yearValue}
+        </div>
+
+        <div style={{ ...certificateFieldStyle, left: '35.1%', bottom: '17.4%', width: '18.4%', height: '3.6%', fontSize: '17px' }}>
+          {trainingDuration}
+        </div>
+
+        <div style={{ ...certificateFieldStyle, right: '14.5%', bottom: '17.4%', width: '17.4%', height: '3.6%', fontSize: '17px' }}>
+          {issueDate}
+        </div>
       </div>
-      
-      <button className="lms-banner-btn" onClick={handleDownload} style={{ padding: '12px 24px', fontSize: '15px' }}>
+
+      <button className="lms-banner-btn" onClick={handleDownload} style={{ padding: '12px 24px', fontSize: '15px', marginTop: '10px' }}>
         Download Certificate
       </button>
     </div>
@@ -98,7 +158,11 @@ export default function Dashboard() {
 
       const coursesData = await apiService.get('/courses');
       if (coursesData.success) {
-        const filtered = coursesData.courses.filter((c) => assigned.includes(c.title));
+        const filtered = coursesData.courses.filter((c) => 
+          assigned.includes(c.title) || 
+          assigned.includes(String(c.id)) || 
+          assigned.includes(String(c._id))
+        );
         setCourses(filtered);
       }
     } catch (err) {

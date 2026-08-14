@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
 const CLIENT_KEY = import.meta.env.VITE_CLIENT_KEY;
 const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET;
 
@@ -14,7 +14,21 @@ export const apiService = {
       method: 'GET',
       headers: defaultHeaders
     });
-    return response.json();
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok) {
+      // try to provide helpful payload when possible
+      if (contentType.includes('application/json')) {
+        const err = await response.json();
+        return { success: false, status: response.status, error: err };
+      }
+      const text = await response.text();
+      return { success: false, status: response.status, error: text };
+    }
+    if (contentType.includes('application/json')) {
+      return response.json();
+    }
+    // non-json successful response
+    return { success: true, data: await response.text() };
   },
 
   async post(endpoint, data) {
@@ -27,7 +41,13 @@ export const apiService = {
       headers,
       body: isFormData ? data : JSON.stringify(data)
     });
-    return response.json();
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok) {
+      if (contentType.includes('application/json')) return { success: false, status: response.status, error: await response.json() };
+      return { success: false, status: response.status, error: await response.text() };
+    }
+    if (contentType.includes('application/json')) return response.json();
+    return { success: true, data: await response.text() };
   },
 
   async put(endpoint, data) {
@@ -40,7 +60,13 @@ export const apiService = {
       headers,
       body: isFormData ? data : JSON.stringify(data)
     });
-    return response.json();
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok) {
+      if (contentType.includes('application/json')) return { success: false, status: response.status, error: await response.json() };
+      return { success: false, status: response.status, error: await response.text() };
+    }
+    if (contentType.includes('application/json')) return response.json();
+    return { success: true, data: await response.text() };
   },
 
   async delete(endpoint) {
@@ -48,6 +74,12 @@ export const apiService = {
       method: 'DELETE',
       headers: defaultHeaders
     });
-    return response.json();
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok) {
+      if (contentType.includes('application/json')) return { success: false, status: response.status, error: await response.json() };
+      return { success: false, status: response.status, error: await response.text() };
+    }
+    if (contentType.includes('application/json')) return response.json();
+    return { success: true, data: await response.text() };
   }
 };

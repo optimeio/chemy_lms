@@ -5,8 +5,16 @@
     "phone": "9876543210",
     "password": "Password123",
     "gender": "Male",
-    "year": "I Year",
+    "year": "III Year",
     "district": "Salem",
+    "college": "Sona College of Technology",
+    "department": "ECE",
+    "role": "Student",
+    "dashboard": "a",
+    "assignedCourses": [
+      "PCB DESIGN"
+    ],
+    "progress": [],
     "createdAt": "2026-06-17T06:28:17.862Z"
   },
   {
@@ -19,7 +27,41 @@
     "district": "Salem",
     "college": "Sona College of Technology",
     "department": "CSE",
-    "assignedCourses": ["Embedded Systems", "Electric Vehicles", "MERN Stack Development"],
+    "assignedCourses": [
+      "Embedded Systems",
+      "Electric Vehicles",
+      "MERN Stack Development",
+      "PCB DESIGN"
+    ],
+    "progress": [
+      {
+        "courseId": "6a796901fea2a12a51c8583d",
+        "watchedVideos": [
+          "/uploads/1786603760536_Day_01_(1).mp4"
+        ],
+        "midCourseQuizCompleted": true,
+        "finalQuizCompleted": true
+      }
+    ],
     "createdAt": "2026-06-17T12:24:00.433Z"
+  },
+  {
+    "fullName": "Test Student",
+    "email": "teststudent@gmail.com",
+    "phone": "9999999999",
+    "password": "student@123",
+    "gender": "Male",
+    "year": "I Year",
+    "district": "Chennai",
+    "college": "Test College",
+    "department": "CSE",
+    "role": "Student",
+    "dashboard": "a",
+    "assignedCourses": [
+      "PCB DESIGN",
+      "TSMGSM013"
+    ],
+    "progress": [],
+    "createdAt": "2026-08-13T08:39:52.046Z"
   }
 ]

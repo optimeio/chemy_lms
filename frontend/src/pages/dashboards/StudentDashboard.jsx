@@ -1,4 +1,4 @@
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../state/useAuth';
 import { apiService } from '../../services/apiService';
@@ -12,12 +12,26 @@ const CertificateCard = ({ user, course }) => {
   const handleDownload = async () => {
     if (certificateRef.current) {
       try {
-        const canvas = await html2canvas(certificateRef.current, { scale: 2 });
+        const canvas = await html2canvas(certificateRef.current, { scale: 2, useCORS: true });
         const imgData = canvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = imgData;
         link.download = `${user.fullName}_${course.title}_Certificate.png`;
         link.click();
+        console.log('Certificate downloaded:', link.download);
+        
+        // Save certificate record to backend
+        try {
+          await apiService.post('/certificates/save', {
+            userEmail: user.email,
+            userName: user.fullName,
+            courseId: course._id || course.id,
+            courseTitle: course.title
+          });
+          console.log('Certificate record saved to backend');
+        } catch (apiErr) {
+          console.warn('Failed to save certificate record:', apiErr);
+        }
       } catch (err) {
         console.error('Error downloading certificate', err);
       }
@@ -25,40 +39,87 @@ const CertificateCard = ({ user, course }) => {
   };
 
   const currentDate = new Date().toLocaleDateString('en-GB');
+  const yearValue = user?.year || '2026-2027';
+  const studentName = user?.fullName || 'Tharaneesh K.P.';
+  const departmentName = user?.department || 'CSE';
+  const institutionName = user?.college || 'Sona College of Technology';
+  const courseName = course?.title || 'PCB DESIGN';
+  const trainingDuration = course?.duration || '00 months';
+  const issueDate = currentDate || '13/08/2026';
+
+  const certificateFieldStyle = {
+    position: 'absolute',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#111111',
+    fontWeight: 700,
+    fontFamily: 'serif',
+    letterSpacing: '0.01em',
+    textAlign: 'center',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    pointerEvents: 'none'
+  };
 
   return (
     <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '16px', padding: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', overflowX: 'auto' }}>
-      <div 
+      <div
         ref={certificateRef}
-        style={{ 
-          position: 'relative', 
-          width: '800px', 
-          minWidth: '800px',
-          height: '600px', 
-          backgroundImage: 'url(/certificate-template.png)', 
-          backgroundSize: 'cover', 
-          backgroundPosition: 'center',
-          fontFamily: 'serif',
-          color: '#000',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-          backgroundRepeat: 'no-repeat'
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: '1050px',
+          aspectRatio: '1458 / 1024',
+          background: '#fff',
+          overflow: 'hidden',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
         }}
       >
-        <div style={{ position: 'absolute', top: '245px', left: '280px', width: '450px', fontSize: '18px', fontWeight: 'bold' }}>{user.fullName}</div>
-        
-        <div style={{ position: 'absolute', top: '285px', left: '80px', width: '300px', fontSize: '16px', textAlign: 'center' }}>{user.department}</div>
-        <div style={{ position: 'absolute', top: '285px', left: '460px', width: '250px', fontSize: '16px', textAlign: 'center' }}>{user.college}</div>
-        
-        <div style={{ position: 'absolute', top: '325px', left: '50px', width: '250px', fontSize: '16px', textAlign: 'center' }}>{user.year}</div>
-        <div style={{ position: 'absolute', top: '325px', left: '330px', width: '380px', fontSize: '16px', textAlign: 'center', fontWeight: 'bold' }}>{course.title}</div>
-        
-        <div style={{ position: 'absolute', top: '385px', left: '50px', width: '350px', fontSize: '16px', textAlign: 'center' }}>2025-2026</div>
+        <img
+          src="/certificate.png"
+          alt="Certificate"
+          style={{
+            display: 'block',
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            userSelect: 'none',
+            pointerEvents: 'none'
+          }}
+        />
 
-        <div style={{ position: 'absolute', top: '445px', left: '210px', width: '200px', fontSize: '16px' }}>40 Hours</div>
-        <div style={{ position: 'absolute', top: '495px', left: '150px', width: '200px', fontSize: '16px' }}>{currentDate}</div>
+        <div style={{ ...certificateFieldStyle, left: '34.7%', top: '31.3%', width: '31.5%', height: '4.5%', fontSize: '22px' }}>
+          {studentName}
+        </div>
+
+        <div style={{ ...certificateFieldStyle, left: '18.2%', top: '39.2%', width: '20.9%', height: '4.2%', fontSize: '17px' }}>
+          {institutionName}
+        </div>
+
+        <div style={{ ...certificateFieldStyle, left: '51.3%', top: '39.2%', width: '16.9%', height: '4.2%', fontSize: '17px' }}>
+          {departmentName}
+        </div>
+
+        <div style={{ ...certificateFieldStyle, left: '23.4%', top: '49.3%', width: '53.2%', height: '4.8%', fontSize: '19px' }}>
+          {courseName}
+        </div>
+
+        <div style={{ ...certificateFieldStyle, left: '66.5%', top: '60.4%', width: '13.5%', height: '4.2%', fontSize: '17px' }}>
+          {yearValue}
+        </div>
+
+        <div style={{ ...certificateFieldStyle, left: '35.1%', bottom: '17.4%', width: '18.4%', height: '3.6%', fontSize: '17px' }}>
+          {trainingDuration}
+        </div>
+
+        <div style={{ ...certificateFieldStyle, right: '14.5%', bottom: '17.4%', width: '17.4%', height: '3.6%', fontSize: '17px' }}>
+          {issueDate}
+        </div>
       </div>
-      
-      <button onClick={handleDownload} style={{ padding: '12px 24px', fontSize: '15px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+
+      <button onClick={handleDownload} style={{ padding: '12px 24px', fontSize: '15px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', marginTop: '10px' }}>
         Download Certificate
       </button>
     </div>
@@ -68,6 +129,7 @@ const CertificateCard = ({ user, course }) => {
 export default function StudentDashboard() {
   const { activeTab } = useOutletContext() || { activeTab: 'dashboard' };
   const { user, setUser } = useAuth();
+  const navigate = useNavigate();
   
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({
@@ -85,6 +147,8 @@ export default function StudentDashboard() {
   const [activeQuiz, setActiveQuiz] = useState(null); // { type, questions, title }
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizScore, setQuizScore] = useState(null);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const videoRef = useRef(null);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -95,7 +159,7 @@ export default function StudentDashboard() {
           if (allCoursesData.success) {
              const assigned = allCoursesData.courses.filter(c => 
                c.status !== 'draft' && 
-               (profileData.user.assignedCourses || []).includes(String(c._id || c.id || c.title))
+               (profileData.user.assignedCourses || []).some(ac => ac === String(c._id) || ac === String(c.id) || ac === c.title)
              );
              setUserAssignedCourses(assigned);
           }
@@ -285,7 +349,7 @@ export default function StudentDashboard() {
     const questions = activeQuiz.questions;
     let score = 0;
     questions.forEach((q, idx) => {
-      if (quizAnswers[idx] === q.correctOptionIndex) {
+      if (Number(quizAnswers[idx]) === Number(q.correctOptionIndex)) {
         score++;
       }
     });
@@ -322,7 +386,7 @@ export default function StudentDashboard() {
     setQuizScore(null);
   };
 
-  if (activeTab !== 'dashboard') {
+  if (activeTab !== 'dashboard' && activeTab !== 'courses') {
     return (
       <div className={styles.dashboardContainer}>
         <div className={styles.premiumCard} style={{ marginTop: '20px', padding: '60px', textAlign: 'center' }}>
@@ -333,10 +397,22 @@ export default function StudentDashboard() {
     );
   }
 
+    const handlePreview5s = () => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 5);
+    }
+  };
+
+  const handleReview5s = () => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = Math.min(videoRef.current.duration, videoRef.current.currentTime + 5);
+    }
+  };
+
   const renderCourseViewer = () => {
     if (!selectedCourse) return null;
 
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
     const serverBaseUrl = API_BASE_URL.replace('/api', '');
 
     const getFullUrl = (url) => {
@@ -351,8 +427,12 @@ export default function StudentDashboard() {
     const totalVideos = selectedCourse.videos ? selectedCourse.videos.length : 0;
     const midPoint = Math.ceil(totalVideos / 2);
     
-    const midQuizUnlocked = watchedSet.size >= midPoint;
-    const finalQuizUnlocked = watchedSet.size >= totalVideos && courseProg.midCourseQuizCompleted;
+    // Mid quiz unlocked exactly after 5 videos (or midPoint if fewer videos exist)
+    const unlockIndex = Math.min(5, midPoint);
+    const midQuizUnlocked = watchedSet.size >= unlockIndex;
+    const finalQuizUnlocked = courseProg.midCourseQuizCompleted;
+    
+    const courseCompleted = courseProg.midCourseQuizCompleted && courseProg.finalQuizCompleted;
 
     if (activeQuiz) {
       return (
@@ -395,6 +475,17 @@ export default function StudentDashboard() {
       );
     }
 
+    const currentVideo = selectedCourse.videos && selectedCourse.videos.length > 0 ? selectedCourse.videos[currentVideoIndex] : null;
+
+    const handleNextVideo = () => {
+      // Force mid quiz exacty after 5 videos (index 4) if not completed
+      if (currentVideoIndex === 4 && !courseProg.midCourseQuizCompleted && selectedCourse.midCourseQuiz?.length > 0) {
+        setActiveQuiz({ type: 'mid', questions: selectedCourse.midCourseQuiz, title: 'Mid-Course Quiz' });
+      } else if (currentVideoIndex < totalVideos - 1) {
+        setCurrentVideoIndex(prev => prev + 1);
+      }
+    };
+
     return (
       <div style={{
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
@@ -410,7 +501,7 @@ export default function StudentDashboard() {
           <div style={{ padding: '20px', borderBottom: '1px solid #374151', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 style={{ color: '#fff', margin: 0, fontSize: '24px' }}>{selectedCourse.title}</h2>
             <button 
-              onClick={() => setSelectedCourse(null)}
+              onClick={() => { setSelectedCourse(null); setCurrentVideoIndex(0); }}
               style={{ background: '#374151', color: '#fff', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}
             >
               ✕
@@ -420,32 +511,75 @@ export default function StudentDashboard() {
           {/* Content */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '30px', display: 'flex', flexDirection: 'column', gap: '40px' }}>
             
-            {/* Videos */}
-            {selectedCourse.videos && selectedCourse.videos.length > 0 && (
+            {courseCompleted && (
+              <div style={{ background: '#10b981', color: '#fff', padding: '30px', borderRadius: '12px', textAlign: 'center' }}>
+                <h2 style={{ margin: '0 0 20px 0', fontSize: '28px' }}>Your course has been completed. Download your certificate.</h2>
+                <div style={{ display: 'flex', justifyContent: 'center', width: '100%', overflow: 'hidden' }}>
+                  <div style={{ transform: 'scale(0.8)', transformOrigin: 'top center' }}>
+                    <CertificateCard user={user} course={selectedCourse} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Videos - Sequential */}
+            {!courseCompleted && currentVideo && (
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                  <h3 style={{ color: '#9ca3af', margin: 0, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Course Videos</h3>
+                  <h3 style={{ color: '#9ca3af', margin: 0, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Course Video {currentVideoIndex + 1} of {totalVideos}</h3>
                   <span style={{ color: '#3b82f6', fontSize: '14px', fontWeight: 'bold' }}>{watchedSet.size} / {totalVideos} Watched</span>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
-                  {selectedCourse.videos.map((video, idx) => {
-                    const isWatched = watchedSet.has(video.url);
-                    return (
-                      <div key={idx} style={{ background: '#1f2937', borderRadius: '12px', overflow: 'hidden', border: isWatched ? '2px solid #10b981' : '2px solid transparent' }}>
-                        <video 
-                          controls 
-                          src={getFullUrl(video.url)}
-                          controlsList="nodownload"
-                          onEnded={() => handleVideoEnded(video.url)}
-                          style={{ width: '100%', height: '200px', objectFit: 'cover', background: '#000' }}
-                        />
-                        <div style={{ padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <h4 style={{ color: '#f3f4f6', margin: 0, fontSize: '16px' }}>{video.name || `Video ${idx + 1}`}</h4>
-                          {isWatched && <span style={{ color: '#10b981', fontSize: '18px' }}>✅</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
+                
+                <div style={{ background: '#1f2937', borderRadius: '12px', overflow: 'hidden' }}>
+                  <video 
+                    key={currentVideo.url || currentVideoIndex}
+                    ref={videoRef}
+                    controls 
+                    src={getFullUrl(currentVideo.url)}
+                    controlsList="nodownload"
+                    onEnded={() => {
+                      handleVideoEnded(currentVideo.url);
+                      if (currentVideoIndex === 4 && !courseProg.midCourseQuizCompleted && selectedCourse.midCourseQuiz?.length > 0) {
+                        setActiveQuiz({ type: 'mid', questions: selectedCourse.midCourseQuiz, title: 'Mid-Course Quiz' });
+                      } else if (currentVideoIndex === 11 && !courseProg.finalQuizCompleted && selectedCourse.finalAssessmentQuiz?.length > 0) {
+                        setActiveQuiz({ type: 'final', questions: selectedCourse.finalAssessmentQuiz, title: 'Final Assessment' });
+                      }
+                    }}
+                    style={{ width: '100%', height: '450px', objectFit: 'cover', background: '#000' }}
+                  />
+                  
+                  {/* Video Controls & Next Button */}
+                  <div style={{ padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#374151' }}>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button onClick={handlePreview5s} style={{ padding: '8px 16px', background: '#4b5563', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                        ⏪ Preview 5s
+                      </button>
+                      <button onClick={handleReview5s} style={{ padding: '8px 16px', background: '#4b5563', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                        Review 5s ⏩
+                      </button>
+                    </div>
+                    
+                    <div style={{ textAlign: 'right' }}>
+                      <h4 style={{ color: '#f3f4f6', margin: '0 0 5px 0', fontSize: '16px' }}>{currentVideo.name || `Video ${currentVideoIndex + 1}`}</h4>
+                      {currentVideoIndex < totalVideos - 1 && (
+                        <button 
+                          onClick={handleNextVideo} 
+                          style={{ padding: '8px 16px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                        >
+                          Next Video ⏭️
+                        </button>
+                      )}
+                      {currentVideoIndex === totalVideos - 1 && !courseProg.finalQuizCompleted && (
+                         <button 
+                         onClick={() => setActiveQuiz({ type: 'final', questions: selectedCourse.finalAssessmentQuiz, title: 'Final Assessment' })}
+                         disabled={!finalQuizUnlocked}
+                         style={{ padding: '8px 16px', background: finalQuizUnlocked ? '#10b981' : '#4b5563', color: '#fff', border: 'none', borderRadius: '6px', cursor: finalQuizUnlocked ? 'pointer' : 'not-allowed', fontWeight: 'bold' }}
+                       >
+                         {finalQuizUnlocked ? 'Take Final Quiz 📝' : '🔒 Final Quiz Locked'}
+                       </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -472,49 +606,63 @@ export default function StudentDashboard() {
                 </div>
               </div>
             )}
-
-            {/* Quizzes */}
-            <div>
-              <h3 style={{ color: '#9ca3af', marginBottom: '15px', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Assessments</h3>
-              <div style={{ display: 'flex', gap: '20px' }}>
-                {selectedCourse.midCourseQuiz && selectedCourse.midCourseQuiz.length > 0 && (
-                  <button 
-                    disabled={!midQuizUnlocked}
-                    onClick={() => setActiveQuiz({ type: 'mid', questions: selectedCourse.midCourseQuiz, title: 'Mid-Course Quiz' })}
-                    style={{ flex: 1, padding: '20px', background: midQuizUnlocked ? '#374151' : '#1f2937', color: midQuizUnlocked ? '#f3f4f6' : '#6b7280', border: midQuizUnlocked ? '1px solid #4b5563' : '1px dashed #374151', borderRadius: '12px', cursor: midQuizUnlocked ? 'pointer' : 'not-allowed', textAlign: 'left', position: 'relative', overflow: 'hidden' }}
-                  >
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '5px', display: 'flex', justifyContent: 'space-between' }}>
-                      Mid-Course Quiz 
-                      {courseProg.midCourseQuizCompleted ? <span style={{ color: '#10b981' }}>✅ Passed</span> : (!midQuizUnlocked && <span>🔒 Locked</span>)}
-                    </div>
-                    <div style={{ fontSize: '14px', marginTop: '5px' }}>
-                      {!midQuizUnlocked ? `Watch ${midPoint} videos to unlock.` : `${selectedCourse.midCourseQuiz.length} Questions`}
-                    </div>
-                  </button>
-                )}
-                {selectedCourse.finalAssessmentQuiz && selectedCourse.finalAssessmentQuiz.length > 0 && (
-                  <button 
-                    disabled={!finalQuizUnlocked}
-                    onClick={() => setActiveQuiz({ type: 'final', questions: selectedCourse.finalAssessmentQuiz, title: 'Final Assessment' })}
-                    style={{ flex: 1, padding: '20px', background: finalQuizUnlocked ? '#374151' : '#1f2937', color: finalQuizUnlocked ? '#f3f4f6' : '#6b7280', border: finalQuizUnlocked ? '1px solid #4b5563' : '1px dashed #374151', borderRadius: '12px', cursor: finalQuizUnlocked ? 'pointer' : 'not-allowed', textAlign: 'left', position: 'relative', overflow: 'hidden' }}
-                  >
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '5px', display: 'flex', justifyContent: 'space-between' }}>
-                      Final Assessment
-                      {courseProg.finalQuizCompleted ? <span style={{ color: '#10b981' }}>✅ Passed</span> : (!finalQuizUnlocked && <span>🔒 Locked</span>)}
-                    </div>
-                    <div style={{ fontSize: '14px', marginTop: '5px' }}>
-                      {!finalQuizUnlocked ? `Watch all videos and pass Mid-Course Quiz.` : `${selectedCourse.finalAssessmentQuiz.length} Questions`}
-                    </div>
-                  </button>
-                )}
-              </div>
-            </div>
-
           </div>
         </div>
       </div>
     );
   };
+
+  if (activeTab === 'courses') {
+    return (
+      <div className={styles.dashboardContainer} style={{ padding: '20px' }}>
+        {renderCourseViewer()}
+        <section>
+          <h2 className={styles.sectionTitle}>Continue Learning</h2>
+          <div className={styles.coursesGrid}>
+            {userAssignedCourses.length === 0 ? (
+              <p style={{ color: '#6b7280' }}>You don't have any assigned courses yet.</p>
+            ) : (
+              userAssignedCourses.map(course => {
+                const progressObj = userProgress.find(p => String(p.courseId) === String(course._id || course.id));
+                const progressPercent = progressObj ? 
+                  (progressObj.completedVideos?.length || 0) * 10 : 0; // Simplified progress
+                
+                const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
+                const serverBaseUrl = API_BASE_URL.replace('/api', '');
+                const getFullUrl = (url) => url ? (url.startsWith('http') ? url : `${serverBaseUrl}${url}`) : '';
+
+                return (
+                  <div key={course._id || course.id || course.title} className={`${styles.premiumCard} ${styles.courseCard}`}>
+                    <img src={getFullUrl(course.image) || 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=400&q=80'} alt={course.title} className={styles.courseImage} />
+                    <div className={styles.courseHeader}>
+                      <h3 className={styles.courseTitle}>{course.title}</h3>
+                      <span className={styles.courseRating}>⭐ {course.rating || '4.8'}</span>
+                    </div>
+                    <p className={styles.courseMeta}>{course.trainerName || course.instructor || 'Instructor'}</p>
+                    
+                    <div className={styles.courseProgressContainer}>
+                      <div className={styles.courseProgressHeader}>
+                        <span className={styles.courseProgressPercent}>{progressPercent}%</span>
+                        <span className={styles.courseProgressText}>Completed</span>
+                      </div>
+                      <div className={styles.courseProgressBar}>
+                        <div className={styles.courseProgressFill} style={{ width: `${progressPercent}%` }}></div>
+                      </div>
+                    </div>
+
+                        <div className={styles.courseFooter}>
+                          <button className={styles.resumeBtn} onClick={() => setSelectedCourse(course)}>Resume ▶</button>
+                      <button className={styles.bookmarkBtn}>🔖</button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.dashboardContainer}>
@@ -581,51 +729,7 @@ export default function StudentDashboard() {
         </div>
       </section>
 
-      {/* My Courses */}
-      <section>
-        <h2 className={styles.sectionTitle}>Continue Learning</h2>
-        <div className={styles.coursesGrid}>
-          {userAssignedCourses.length === 0 ? (
-            <p style={{ color: '#6b7280' }}>You don't have any assigned courses yet.</p>
-          ) : (
-            userAssignedCourses.map(course => {
-              const progressObj = userProgress.find(p => String(p.courseId) === String(course._id || course.id));
-              const progressPercent = progressObj ? 
-                (progressObj.completedVideos?.length || 0) * 10 : 0; // Simplified progress
-              
-              const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-              const serverBaseUrl = API_BASE_URL.replace('/api', '');
-              const getFullUrl = (url) => url ? (url.startsWith('http') ? url : `${serverBaseUrl}${url}`) : '';
-
-              return (
-                <div key={course._id || course.id || course.title} className={`${styles.premiumCard} ${styles.courseCard}`}>
-                  <img src={getFullUrl(course.image) || 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=400&q=80'} alt={course.title} className={styles.courseImage} />
-                  <div className={styles.courseHeader}>
-                    <h3 className={styles.courseTitle}>{course.title}</h3>
-                    <span className={styles.courseRating}>⭐ {course.rating || '4.8'}</span>
-                  </div>
-                  <p className={styles.courseMeta}>{course.trainerName || course.instructor || 'Instructor'}</p>
-                  
-                  <div className={styles.courseProgressContainer}>
-                    <div className={styles.courseProgressHeader}>
-                      <span className={styles.courseProgressPercent}>{progressPercent}%</span>
-                      <span className={styles.courseProgressText}>Completed</span>
-                    </div>
-                    <div className={styles.courseProgressBar}>
-                      <div className={styles.courseProgressFill} style={{ width: `${progressPercent}%` }}></div>
-                    </div>
-                  </div>
-
-                  <div className={styles.courseFooter}>
-                    <button className={styles.resumeBtn} onClick={() => setSelectedCourse(course)}>Resume ▶</button>
-                    <button className={styles.bookmarkBtn}>🔖</button>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </section>
+      {/* My Courses moved to its own tab */}
 
       {/* Lower Grid */}
       <section className={styles.lowerGrid}>

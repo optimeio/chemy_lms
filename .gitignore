@@ -11,6 +11,9 @@ backend/dist/
 # Archive or large files
 *.rar
 
+# Uploaded course materials (stored at runtime, not in git)
+backend/uploads/
+
 # Production/Build
 dist/
 build/

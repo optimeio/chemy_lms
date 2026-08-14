@@ -15,6 +15,7 @@ import DashboardLanding from './pages/DashboardLanding';
 
 const StudentDashboard = lazy(() => import('./pages/dashboards/StudentDashboard'));
 const SuperAdminDashboard = lazy(() => import('./pages/dashboards/SuperAdminDashboard'));
+const CoursePlayer = lazy(() => import('./pages/CoursePlayer'));
 
 export default function App() {
   return (
@@ -37,7 +38,9 @@ export default function App() {
         >
           <Route index element={<DashboardLanding />} />
           <Route path="a" element={<StudentDashboard />} />
+          <Route path="a/course/:courseId" element={<CoursePlayer />} />
           <Route path="d" element={<SuperAdminDashboard />} />
+          <Route path="d/course/:courseId" element={<CoursePlayer />} />
           <Route path="*" element={<Navigate to="/app" replace />} />
         </Route>
         <Route path="*" element={<div style={{ padding: '50px', textAlign: 'center', color: 'var(--text-primary)' }}>Page not found</div>} />

@@ -57,7 +57,7 @@ export default function OTPVerification() {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/verify-otp', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api'}/auth/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -92,7 +92,7 @@ export default function OTPVerification() {
     inputRefs.current[0]?.focus();
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/forgot-password', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api'}/auth/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

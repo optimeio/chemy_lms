@@ -60,6 +60,9 @@ export default function DashboardShell() {
       logout();
       navigate('/login');
     } else {
+      if (location.pathname !== allowedPath) {
+        navigate(allowedPath);
+      }
       setActiveTab(key);
     }
   };
