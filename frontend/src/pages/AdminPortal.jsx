@@ -1,5 +1,6 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import html2canvas from 'html2canvas';
 import '../styles/AdminPortal.css';
 import { midCourseQuizTemplate, finalAssessmentQuizTemplate } from '../data/iotQuizTemplate';
 import { apiService } from '../services/apiService';
@@ -132,6 +133,22 @@ export default function AdminPortal() {
   const [courseModal, setCourseModal] = useState(null);
   const [deleteCourseModal, setDeleteCourseModal] = useState(null);
 
+  // Certificate states & model
+  const [certificates, setCertificates] = useState([]);
+  const [certTab, setCertTab] = useState('model'); // 'model' | 'issued'
+  const certificateRef = useRef(null);
+  const [certPreviewData, setCertPreviewData] = useState({
+    studentName: 'Tharaneesh K.P.',
+    institutionName: 'Sona College of Technology',
+    departmentName: 'CSE',
+    courseName: 'PCB DESIGN',
+    yearValue: '2026-2027',
+    trainingDuration: '00 months',
+    issueDate: new Date().toLocaleDateString('en-GB')
+  });
+  const [selectedCertStudent, setSelectedCertStudent] = useState('');
+  const [selectedCertCourse, setSelectedCertCourse] = useState('');
+
   const fetchCourses = async () => {
     try {
       const data = await apiService.get('/courses');
@@ -155,6 +172,18 @@ export default function AdminPortal() {
     }
   };
 
+  const fetchCertificates = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/certificates`);
+      const data = await res.json();
+      if (data.success) {
+        setCertificates(data.certificates || []);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch certificates:', err);
+    }
+  };
+
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user'));
     if (!user || (user.email !== 'admin@chemylms.com' && user.email !== 'chemylms@gmail.com' && user.email !== 'thesmgroups@gmail.com')) {
@@ -163,11 +192,72 @@ export default function AdminPortal() {
     }
 
     const loadAdminData = async () => {
-      await Promise.all([fetchStudents(), fetchCourses()]);
+      await Promise.all([fetchStudents(), fetchCourses(), fetchCertificates()]);
     };
 
     void loadAdminData();
   }, [navigate]);
+
+  const handleCertStudentSelect = (e) => {
+    const email = e.target.value;
+    setSelectedCertStudent(email);
+    if (!email) return;
+    const student = students.find(s => s.email === email);
+    if (student) {
+      setCertPreviewData(prev => ({
+        ...prev,
+        studentName: student.fullName || prev.studentName,
+        institutionName: student.college || prev.institutionName,
+        departmentName: student.department || prev.departmentName,
+        yearValue: student.year || prev.yearValue
+      }));
+    }
+  };
+
+  const handleCertCourseSelect = (e) => {
+    const title = e.target.value;
+    setSelectedCertCourse(title);
+    if (!title) return;
+    const course = courses.find(c => c.title === title);
+    if (course) {
+      setCertPreviewData(prev => ({
+        ...prev,
+        courseName: course.title || prev.courseName,
+        trainingDuration: course.duration || '00 months'
+      }));
+    }
+  };
+
+  const handleDownloadCertModel = async () => {
+    if (!certificateRef.current) return;
+    try {
+      const canvas = await html2canvas(certificateRef.current, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = imgData;
+      link.download = `${certPreviewData.studentName || 'Student'}_${certPreviewData.courseName || 'Course'}_Certificate.png`;
+      link.click();
+      showToast('Certificate model downloaded successfully!');
+    } catch (err) {
+      console.error('Error downloading certificate:', err);
+      showToast('Failed to download certificate', 'error');
+    }
+  };
+
+  const resetCertPreview = () => {
+    setSelectedCertStudent('');
+    setSelectedCertCourse('');
+    setCertPreviewData({
+      studentName: 'Tharaneesh K.P.',
+      institutionName: 'Sona College of Technology',
+      departmentName: 'CSE',
+      courseName: 'PCB DESIGN',
+      yearValue: '2026-2027',
+      trainingDuration: '00 months',
+      issueDate: new Date().toLocaleDateString('en-GB')
+    });
+    showToast('Reset certificate model to default sample.');
+  };
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -894,24 +984,431 @@ export default function AdminPortal() {
           </>
         );
 
-      case 'Certificates':
+      case 'Certificates': {
+        const certificateFieldStyle = {
+          position: 'absolute',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#111111',
+          fontWeight: 700,
+          fontFamily: 'serif',
+          letterSpacing: '0.01em',
+          textAlign: 'center',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          pointerEvents: 'none'
+        };
+
+        const handlePreviewIssuedCert = (cert) => {
+          setCertPreviewData({
+            studentName: cert.userName || 'Student Name',
+            institutionName: cert.college || 'Institution Name',
+            departmentName: cert.department || 'Department',
+            courseName: cert.courseTitle || 'Course Title',
+            yearValue: cert.year || '2026-2027',
+            trainingDuration: cert.duration || '00 months',
+            issueDate: cert.issuedDate ? new Date(cert.issuedDate).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')
+          });
+          setCertTab('model');
+          showToast(`Loaded certificate for ${cert.userName || cert.userEmail} into Model Preview`);
+        };
+
         return (
           <>
-            <div className="admin-toolbar">
-              <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>Certificates</div>
-              <button className="admin-csv-btn" onClick={() => downloadCSV([{ Status: 'No certificates issued' }], 'certificates.csv')}>
-                {Icons.Download} Export CSV
-              </button>
-            </div>
-            <div className="admin-content-card">
-              <div className="admin-empty-state">
-                <div className="empty-icon">{Icons.Certificate}</div>
-                <h4>No certificates issued</h4>
-                <p>Certificates will appear here after course completions.</p>
+            {/* Certificate Navigation Toolbar */}
+            <div className="admin-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setCertTab('model')}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: certTab === 'model' ? '1px solid #2563eb' : '1px solid #cbd5e1',
+                    background: certTab === 'model' ? '#2563eb' : '#fff',
+                    color: certTab === 'model' ? '#fff' : '#475569',
+                    fontWeight: 600,
+                    fontSize: '13.5px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  {Icons.Certificate} Certificate Model & Designer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCertTab('issued')}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: certTab === 'issued' ? '1px solid #2563eb' : '1px solid #cbd5e1',
+                    background: certTab === 'issued' ? '#2563eb' : '#fff',
+                    color: certTab === 'issued' ? '#fff' : '#475569',
+                    fontWeight: 600,
+                    fontSize: '13.5px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  📋 Issued Certificates ({certificates.length})
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  className="admin-csv-btn"
+                  onClick={() => {
+                    if (!certificates.length) {
+                      downloadCSV([{ Student: certPreviewData.studentName, Course: certPreviewData.courseName, IssueDate: certPreviewData.issueDate, Status: 'Sample Model' }], 'certificates.csv');
+                    } else {
+                      downloadCSV(certificates, 'certificates.csv');
+                    }
+                  }}
+                >
+                  {Icons.Download} Export CSV
+                </button>
               </div>
             </div>
+
+            {/* TAB 1: CERTIFICATE MODEL & LIVE PREVIEW */}
+            {certTab === 'model' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                
+                {/* Control Panel: Student & Course Autofill / Custom Details */}
+                <div className="admin-content-card" style={{ padding: '24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '17px', color: '#1e293b' }}>🎓 Certificate Model Customizer</h3>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                        Select a student or course to preview their official certificate, or customize the fields in real time.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={resetCertPreview}
+                      style={{
+                        padding: '6px 14px',
+                        background: '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '6px',
+                        fontSize: '12.5px',
+                        fontWeight: 600,
+                        color: '#475569',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      🔄 Reset to Sample
+                    </button>
+                  </div>
+
+                  {/* Dropdowns for quick autofill */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '20px', background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px', textTransform: 'uppercase' }}>
+                        Autofill from Registered Student
+                      </label>
+                      <select
+                        value={selectedCertStudent}
+                        onChange={handleCertStudentSelect}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}
+                      >
+                        <option value="">-- Choose a Student --</option>
+                        {students.map(s => (
+                          <option key={s._id || s.email} value={s.email}>
+                            {s.fullName} ({s.email}) - {s.college || 'No College'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px', textTransform: 'uppercase' }}>
+                        Autofill from Course Program
+                      </label>
+                      <select
+                        value={selectedCertCourse}
+                        onChange={handleCertCourseSelect}
+                        style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}
+                      >
+                        <option value="">-- Choose a Course --</option>
+                        {courses.map(c => (
+                          <option key={c._id || c.id || c.title} value={c.title}>
+                            {c.title} {c.courseCode ? `(${c.courseCode})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Editable Certificate Text Fields */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>STUDENT FULL NAME</label>
+                      <input
+                        type="text"
+                        value={certPreviewData.studentName}
+                        onChange={e => setCertPreviewData({ ...certPreviewData, studentName: e.target.value })}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>INSTITUTION / COLLEGE</label>
+                      <input
+                        type="text"
+                        value={certPreviewData.institutionName}
+                        onChange={e => setCertPreviewData({ ...certPreviewData, institutionName: e.target.value })}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>DEPARTMENT</label>
+                      <input
+                        type="text"
+                        value={certPreviewData.departmentName}
+                        onChange={e => setCertPreviewData({ ...certPreviewData, departmentName: e.target.value })}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>COURSE NAME</label>
+                      <input
+                        type="text"
+                        value={certPreviewData.courseName}
+                        onChange={e => setCertPreviewData({ ...certPreviewData, courseName: e.target.value })}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>ACADEMIC YEAR</label>
+                      <input
+                        type="text"
+                        value={certPreviewData.yearValue}
+                        onChange={e => setCertPreviewData({ ...certPreviewData, yearValue: e.target.value })}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>TRAINING DURATION</label>
+                      <input
+                        type="text"
+                        value={certPreviewData.trainingDuration}
+                        onChange={e => setCertPreviewData({ ...certPreviewData, trainingDuration: e.target.value })}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '4px' }}>ISSUE DATE</label>
+                      <input
+                        type="text"
+                        value={certPreviewData.issueDate}
+                        onChange={e => setCertPreviewData({ ...certPreviewData, issueDate: e.target.value })}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Certificate Visual Model Display */}
+                <div
+                  className="admin-content-card"
+                  style={{
+                    padding: '30px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '20px',
+                    background: '#ffffff',
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.06)',
+                    borderRadius: '16px',
+                    overflowX: 'auto'
+                  }}
+                >
+                  <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: '14px', fontWeight: 700, color: '#334155' }}>
+                      🖼️ Official Certificate Canvas Preview
+                    </div>
+                    <span style={{ fontSize: '12px', background: '#e0f2fe', color: '#0369a1', padding: '4px 10px', borderRadius: '20px', fontWeight: 600 }}>
+                      Template: /certificate.png
+                    </span>
+                  </div>
+
+                  {/* The Certificate Model with exact positioning */}
+                  <div
+                    ref={certificateRef}
+                    style={{
+                      position: 'relative',
+                      width: '100%',
+                      maxWidth: '1050px',
+                      aspectRatio: '1458 / 1024',
+                      background: '#fff',
+                      overflow: 'hidden',
+                      borderRadius: '8px',
+                      boxShadow: '0 6px 20px rgba(0,0,0,0.12)',
+                      border: '1px solid #e2e8f0'
+                    }}
+                  >
+                    <img
+                      src="/certificate.png"
+                      alt="Certificate Template"
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        userSelect: 'none',
+                        pointerEvents: 'none'
+                      }}
+                    />
+
+                    {/* Student Name */}
+                    <div style={{ ...certificateFieldStyle, left: '34.7%', top: '31.3%', width: '31.5%', height: '4.5%', fontSize: '22px' }}>
+                      {certPreviewData.studentName}
+                    </div>
+
+                    {/* Institution / College */}
+                    <div style={{ ...certificateFieldStyle, left: '18.2%', top: '39.2%', width: '20.9%', height: '4.2%', fontSize: '17px' }}>
+                      {certPreviewData.institutionName}
+                    </div>
+
+                    {/* Department */}
+                    <div style={{ ...certificateFieldStyle, left: '51.3%', top: '39.2%', width: '16.9%', height: '4.2%', fontSize: '17px' }}>
+                      {certPreviewData.departmentName}
+                    </div>
+
+                    {/* Course Title */}
+                    <div style={{ ...certificateFieldStyle, left: '23.4%', top: '49.3%', width: '53.2%', height: '4.8%', fontSize: '19px' }}>
+                      {certPreviewData.courseName}
+                    </div>
+
+                    {/* Academic Year */}
+                    <div style={{ ...certificateFieldStyle, left: '66.5%', top: '60.4%', width: '13.5%', height: '4.2%', fontSize: '17px' }}>
+                      {certPreviewData.yearValue}
+                    </div>
+
+                    {/* Training Duration */}
+                    <div style={{ ...certificateFieldStyle, left: '35.1%', bottom: '17.4%', width: '18.4%', height: '3.6%', fontSize: '17px' }}>
+                      {certPreviewData.trainingDuration}
+                    </div>
+
+                    {/* Issue Date */}
+                    <div style={{ ...certificateFieldStyle, right: '14.5%', bottom: '17.4%', width: '17.4%', height: '3.6%', fontSize: '17px' }}>
+                      {certPreviewData.issueDate}
+                    </div>
+                  </div>
+
+                  {/* Actions under canvas */}
+                  <div style={{ display: 'flex', gap: '14px', marginTop: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={handleDownloadCertModel}
+                      style={{
+                        padding: '12px 28px',
+                        fontSize: '15px',
+                        background: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 12px rgba(37,99,235,0.3)'
+                      }}
+                    >
+                      {Icons.Download} Download Certificate Model (PNG)
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* TAB 2: ISSUED CERTIFICATES AUDIT LOG */}
+            {certTab === 'issued' && (
+              <div className="admin-content-card">
+                {certificates.length === 0 ? (
+                  <div className="admin-empty-state" style={{ padding: '60px 20px' }}>
+                    <div className="empty-icon">{Icons.Certificate}</div>
+                    <h4>No certificates issued yet</h4>
+                    <p>When students complete final assessments or download their certificates, records will appear here.</p>
+                    <button
+                      type="button"
+                      onClick={() => setCertTab('model')}
+                      style={{
+                        marginTop: '16px',
+                        padding: '9px 18px',
+                        background: '#3b82f6',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Open Certificate Model Designer
+                    </button>
+                  </div>
+                ) : (
+                  <div className="admin-table-wrapper" style={{ overflowX: 'auto' }}>
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Student</th>
+                          <th>Email</th>
+                          <th>Course</th>
+                          <th>Issue Date</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {certificates.map((cert, idx) => (
+                          <tr key={cert._id || cert.id || idx}>
+                            <td style={{ fontWeight: 600 }}>{cert.userName || 'Student'}</td>
+                            <td>{cert.userEmail}</td>
+                            <td>
+                              <span className="admin-badge blue">{cert.courseTitle || 'Course'}</span>
+                            </td>
+                            <td>{cert.issuedDate ? new Date(cert.issuedDate).toLocaleDateString('en-GB') : '-'}</td>
+                            <td>
+                              <span className={`admin-badge ${cert.status === 'downloaded' ? 'green' : 'amber'}`}>
+                                {cert.status === 'downloaded' ? '✓ Downloaded' : 'Generated'}
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="action-btn assign"
+                                style={{ fontSize: '12px', padding: '5px 10px' }}
+                                onClick={() => handlePreviewIssuedCert(cert)}
+                              >
+                                {Icons.Certificate} Preview in Model
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </>
         );
+      }
 
       case 'Profile':
         return (

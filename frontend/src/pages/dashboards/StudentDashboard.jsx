@@ -1,8 +1,10 @@
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../state/useAuth';
 import { apiService } from '../../services/apiService';
 import html2canvas from 'html2canvas';
+import { midCourseQuizTemplate, finalAssessmentQuizTemplate } from '../../data/iotQuizTemplate';
 import styles from '../../styles/StudentDashboard.module.css';
 
 
@@ -70,6 +72,7 @@ const CertificateCard = ({ user, course }) => {
         style={{
           position: 'relative',
           width: '100%',
+          minWidth: '800px',
           maxWidth: '1050px',
           aspectRatio: '1458 / 1024',
           background: '#fff',
@@ -137,8 +140,9 @@ export default function StudentDashboard() {
     college: '',
     department: '',
     year: '',
-    profileImage: ''
+    profileImage: '' // preview URL only
   });
+  const [profileImageFile, setProfileImageFile] = useState(null); // actual File object for upload
 
   const [userAssignedCourses, setUserAssignedCourses] = useState([]);
   const [userProgress, setUserProgress] = useState([]);
@@ -180,33 +184,66 @@ export default function StudentDashboard() {
       year: user.year || '',
       profileImage: user.profileImage || ''
     });
+    setProfileImageFile(null);
     setIsEditingProfile(true);
   };
 
   const handleProfileImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfileForm(prev => ({ ...prev, profileImage: reader.result }));
-      };
-      reader.readAsDataURL(file);
+      setProfileImageFile(file);
+      // Show local preview immediately
+      const previewUrl = URL.createObjectURL(file);
+      setProfileForm(prev => ({ ...prev, profileImage: previewUrl }));
     }
   };
 
   const handleSaveProfile = async () => {
     try {
-      const res = await apiService.put(`/users/${encodeURIComponent(user.email)}/profile`, profileForm);
+      const formData = new FormData();
+      formData.append('fullName', profileForm.fullName);
+      formData.append('college', profileForm.college);
+      formData.append('department', profileForm.department);
+      formData.append('year', profileForm.year);
+      // Append the file if a new one was selected
+      if (profileImageFile) {
+        formData.append('profileImageFile', profileImageFile);
+      } else if (profileForm.profileImage && profileForm.profileImage.startsWith('/uploads/')) {
+        // Keep existing upload path
+        formData.append('profileImage', profileForm.profileImage);
+      }
+
+      const res = await apiService.put(`/users/${encodeURIComponent(user.email)}/profile`, formData);
       if (res.success) {
-        setUser(res.user);
-        localStorage.setItem('user', JSON.stringify(res.user));
+        // Build the base URL to resolve /uploads/ paths
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
+        const serverBaseUrl = API_BASE_URL.replace('/api', '');
+        const resolvedImage = res.user.profileImage
+          ? (res.user.profileImage.startsWith('http') ? res.user.profileImage : `${serverBaseUrl}${res.user.profileImage}`)
+          : '';
+
+        // Merge new profile fields into existing user state (preserve role, dashboard, etc.)
+        const updatedUser = {
+          ...user,
+          fullName: res.user.fullName || user.fullName,
+          college: res.user.college || user.college,
+          department: res.user.department || user.department,
+          year: res.user.year || user.year,
+          profileImage: resolvedImage,
+        };
+        setUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        setProfileImageFile(null);
         setIsEditingProfile(false);
+      } else {
+        alert(res.message || 'Failed to save profile. Please try again.');
       }
     } catch (err) {
       console.error('Error saving profile:', err);
       alert('Failed to save profile details.');
     }
   };
+
 
   if (activeTab === 'profile') {
     return (
@@ -220,11 +257,25 @@ export default function StudentDashboard() {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
-            <div style={{ width: '100px', height: '100px', borderRadius: '50%', backgroundColor: '#f3f4f6', backgroundImage: `url(${isEditingProfile ? profileForm.profileImage : user.profileImage})`, backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #3b82f6', overflow: 'hidden' }}>
-              {!(isEditingProfile ? profileForm.profileImage : user.profileImage) && (
-                <span style={{ fontSize: '36px', color: '#6b7280', fontWeight: 'bold' }}>{user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}</span>
-              )}
-            </div>
+            {(() => {
+              const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
+              const serverBaseUrl = API_BASE_URL.replace('/api', '');
+              const rawImg = isEditingProfile ? profileForm.profileImage : user.profileImage;
+              const resolvedImg = rawImg
+                ? (rawImg.startsWith('http') || rawImg.startsWith('blob:') || rawImg.startsWith('data:')
+                    ? rawImg
+                    : `${serverBaseUrl}${rawImg}`)
+                : '';
+              return (
+                <div style={{ width: '100px', height: '100px', borderRadius: '50%', backgroundColor: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #3b82f6', overflow: 'hidden', flexShrink: 0 }}>
+                  {resolvedImg ? (
+                    <img src={resolvedImg} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ fontSize: '36px', color: '#6b7280', fontWeight: 'bold' }}>{user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}</span>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {isEditingProfile ? (
@@ -292,7 +343,9 @@ export default function StudentDashboard() {
   if (activeTab === 'certificates') {
     const completedCourses = userAssignedCourses.filter(c => {
       const p = userProgress.find(prog => String(prog.courseId) === String(c._id || c.id || c.title));
-      return p && p.finalQuizCompleted;
+      const totalVids = (c.videos && c.videos.length > 0) ? c.videos.length : 12;
+      const watchedAll = (p?.watchedVideos?.length || 0) >= Math.min(12, totalVids);
+      return p && p.midCourseQuizCompleted && p.finalQuizCompleted && watchedAll;
     });
 
     if (completedCourses.length === 0) {
@@ -301,7 +354,20 @@ export default function StudentDashboard() {
           <div className={styles.premiumCard} style={{ padding: '40px', textAlign: 'center' }}>
             <div style={{ fontSize: '48px', marginBottom: '20px' }}>🎓</div>
             <h4 style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827', marginBottom: '10px' }}>No Certificates Earned Yet</h4>
-            <p style={{ color: '#6b7280', fontSize: '16px' }}>Complete all modules and assignments of any assigned course to unlock and download your completion certificate.</p>
+            <p style={{ color: '#6b7280', fontSize: '16px', maxWidth: '600px', margin: '0 auto 20px auto' }}>
+              To automatically unlock your certificate, you must watch all <strong>12 course videos</strong>, pass the <strong>Mid-Course Quiz</strong> (after Video 5), and pass the <strong>Final Assessment Quiz</strong> (after Video 12).
+            </p>
+            <div style={{ display: 'inline-flex', gap: '16px', background: '#f8fafc', padding: '12px 24px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '14px', color: '#475569' }}>
+              <span>1️⃣ Watch Videos 1–5</span>
+              <span>➡️</span>
+              <span>2️⃣ Mid Quiz</span>
+              <span>➡️</span>
+              <span>3️⃣ Watch Videos 6–12</span>
+              <span>➡️</span>
+              <span>4️⃣ Final Quiz</span>
+              <span>➡️</span>
+              <span>5️⃣ 🎓 Certificate</span>
+            </div>
           </div>
         </div>
       );
@@ -310,8 +376,8 @@ export default function StudentDashboard() {
     return (
       <div className={styles.dashboardContainer} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '40px' }}>
         <div>
-          <h3 style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827', marginBottom: '10px' }}>My Certificates</h3>
-          <p style={{ color: '#6b7280' }}>Note: For the certificate to render correctly, ensure `certificate-template.png` is placed in the `frontend/public` directory.</p>
+          <h3 style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827', marginBottom: '6px' }}>🏆 My Earned Certificates</h3>
+          <p style={{ color: '#6b7280' }}>Congratulations on completing all 12 modules and required assessments! Download your verifiable completion certificate below.</p>
         </div>
         {completedCourses.map(course => (
           <CertificateCard key={course._id || course.id || course.title} user={user} course={course} />
@@ -370,9 +436,34 @@ export default function StudentDashboard() {
         if (pIndex !== -1) {
           if (isMid) newProgress[pIndex].midCourseQuizCompleted = true;
           if (isFinal) newProgress[pIndex].finalQuizCompleted = true;
+        } else {
+          newProgress.push({
+            courseId: selectedCourse._id || selectedCourse.id,
+            watchedVideos: [],
+            midCourseQuizCompleted: isMid,
+            finalQuizCompleted: isFinal
+          });
         }
         return newProgress;
       });
+
+      if (isFinal) {
+        // Automatic Certificate Generation on Backend
+        try {
+          await apiService.post('/certificates/save', {
+            userEmail: user.email,
+            userName: user.fullName,
+            courseId: selectedCourse._id || selectedCourse.id,
+            courseTitle: selectedCourse.title,
+            college: user.college,
+            department: user.department,
+            year: user.year
+          });
+          console.log('Certificate automatically generated and saved!');
+        } catch (certErr) {
+          console.warn('Auto certificate save notice:', certErr);
+        }
+      }
       
       setQuizScore({ score, total: questions.length });
     } catch (e) {
@@ -397,7 +488,7 @@ export default function StudentDashboard() {
     );
   }
 
-    const handlePreview5s = () => {
+  const handlePreview5s = () => {
     if (videoRef.current) {
       videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 5);
     }
@@ -422,161 +513,293 @@ export default function StudentDashboard() {
     };
 
     const courseProg = userProgress.find(p => String(p.courseId) === String(selectedCourse._id || selectedCourse.id)) || { watchedVideos: [], midCourseQuizCompleted: false, finalQuizCompleted: false };
-    const watchedSet = new Set(courseProg.watchedVideos);
+    const watchedSet = new Set(courseProg.watchedVideos || []);
     
-    const totalVideos = selectedCourse.videos ? selectedCourse.videos.length : 0;
-    const midPoint = Math.ceil(totalVideos / 2);
+    const totalVideos = selectedCourse.videos ? selectedCourse.videos.length : 12;
     
-    // Mid quiz unlocked exactly after 5 videos (or midPoint if fewer videos exist)
-    const unlockIndex = Math.min(5, midPoint);
-    const midQuizUnlocked = watchedSet.size >= unlockIndex;
-    const finalQuizUnlocked = courseProg.midCourseQuizCompleted;
-    
-    const courseCompleted = courseProg.midCourseQuizCompleted && courseProg.finalQuizCompleted;
+    // Strict progression rules:
+    // 1. Videos 1 to 5 require watching in order.
+    // 2. Mid quiz unlocks after 5 videos watched (index 4).
+    // 3. Videos 6 to 12 are STRICTLY LOCKED until Mid Quiz is completed.
+    // 4. Final quiz unlocks after Video 12 (index 11).
+    // 5. Certificate auto-generated after all 12 videos watched + Mid Quiz + Final Quiz completed.
+    const midQuizQuestions = selectedCourse.midCourseQuiz?.length ? selectedCourse.midCourseQuiz : midCourseQuizTemplate;
+    const finalQuizQuestions = selectedCourse.finalAssessmentQuiz?.length ? selectedCourse.finalAssessmentQuiz : finalAssessmentQuizTemplate;
+
+    const midQuizUnlocked = watchedSet.size >= 5 || (selectedCourse.videos && watchedSet.size >= Math.min(5, selectedCourse.videos.length));
+    const finalQuizUnlocked = courseProg.midCourseQuizCompleted && watchedSet.size >= totalVideos;
+    const courseCompleted = courseProg.midCourseQuizCompleted && courseProg.finalQuizCompleted && watchedSet.size >= totalVideos;
 
     if (activeQuiz) {
-      return (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
-          <div style={{ background: '#1f2937', width: '100%', maxWidth: '800px', maxHeight: '90vh', borderRadius: '16px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ padding: '20px', borderBottom: '1px solid #374151', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ color: '#fff', margin: 0 }}>{activeQuiz.title}</h2>
-              <button onClick={closeQuiz} style={{ background: '#374151', color: '#fff', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer' }}>✕</button>
+      return createPortal(
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(5, 10, 25, 0.88)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          zIndex: 100000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          boxSizing: 'border-box'
+        }}>
+          <div style={{
+            background: '#0f172a',
+            width: '100%',
+            maxWidth: '820px',
+            maxHeight: '90vh',
+            borderRadius: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.7)',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#090d16' }}>
+              <h2 style={{ color: '#fff', margin: 0, fontSize: '20px', fontWeight: 700 }}>{activeQuiz.title}</h2>
+              <button 
+                onClick={closeQuiz} 
+                style={{ background: '#1e293b', color: '#fff', border: '1px solid #334155', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}
+              >
+                ✕
+              </button>
             </div>
             
-            <div style={{ flex: 1, overflowY: 'auto', padding: '30px' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '28px', boxSizing: 'border-box' }}>
               {quizScore !== null ? (
-                <div style={{ textAlign: 'center', padding: '40px' }}>
-                  <div style={{ fontSize: '64px', marginBottom: '20px' }}>{quizScore.score === quizScore.total ? '🏆' : '👏'}</div>
-                  <h3 style={{ color: '#fff', fontSize: '28px', marginBottom: '10px' }}>Quiz Completed!</h3>
-                  <p style={{ color: '#9ca3af', fontSize: '18px' }}>You scored {quizScore.score} out of {quizScore.total}</p>
-                  <button onClick={closeQuiz} style={{ marginTop: '30px', padding: '12px 24px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '16px', cursor: 'pointer' }}>Back to Course</button>
+                <div style={{ textAlign: 'center', padding: '30px 20px' }}>
+                  <div style={{ fontSize: '64px', marginBottom: '16px' }}>{quizScore.score === quizScore.total ? '🏆' : '👏'}</div>
+                  <h3 style={{ color: '#fff', fontSize: '26px', marginBottom: '8px' }}>Quiz Completed!</h3>
+                  <p style={{ color: '#94a3b8', fontSize: '17px', margin: '0 0 20px 0' }}>You scored {quizScore.score} out of {quizScore.total}</p>
+                  {activeQuiz.type === 'mid' && (
+                    <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '14px', borderRadius: '10px', color: '#34d399', fontSize: '15px', fontWeight: 'bold', marginBottom: '24px' }}>
+                      🎉 Videos 6 to 12 are now UNLOCKED!
+                    </div>
+                  )}
+                  {activeQuiz.type === 'final' && (
+                    <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '14px', borderRadius: '10px', color: '#34d399', fontSize: '15px', fontWeight: 'bold', marginBottom: '24px' }}>
+                      🎓 Congratulations! Your official Certificate has been automatically generated.
+                    </div>
+                  )}
+                  <button onClick={closeQuiz} style={{ padding: '12px 28px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '15px', cursor: 'pointer', fontWeight: 'bold' }}>
+                    Continue to Course
+                  </button>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                   {activeQuiz.questions.map((q, qIdx) => (
-                    <div key={qIdx} style={{ background: '#111827', padding: '20px', borderRadius: '12px' }}>
-                      <h4 style={{ color: '#f3f4f6', fontSize: '18px', marginBottom: '15px' }}>{qIdx + 1}. {q.question}</h4>
+                    <div key={qIdx} style={{ background: '#1e293b', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
+                      <h4 style={{ color: '#f8fafc', fontSize: '16px', marginBottom: '14px', lineHeight: 1.4 }}>{qIdx + 1}. {q.question}</h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         {q.options.map((opt, oIdx) => (
-                          <label key={oIdx} style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#d1d5db', cursor: 'pointer', padding: '10px', background: quizAnswers[qIdx] === oIdx ? '#374151' : 'transparent', borderRadius: '8px', border: '1px solid #374151' }}>
+                          <label key={oIdx} style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#cbd5e1', cursor: 'pointer', padding: '10px 14px', background: quizAnswers[qIdx] === oIdx ? 'rgba(37,99,235,0.2)' : 'rgba(15,23,42,0.6)', borderRadius: '8px', border: quizAnswers[qIdx] === oIdx ? '1px solid #3b82f6' : '1px solid #334155', transition: 'all 0.2s ease' }}>
                             <input type="radio" name={`q_${qIdx}`} checked={quizAnswers[qIdx] === oIdx} onChange={() => setQuizAnswers(prev => ({...prev, [qIdx]: oIdx}))} />
-                            {opt}
+                            <span style={{ fontSize: '14px' }}>{opt}</span>
                           </label>
                         ))}
                       </div>
                     </div>
                   ))}
-                  <button onClick={submitQuiz} disabled={Object.keys(quizAnswers).length < activeQuiz.questions.length} style={{ padding: '16px', background: Object.keys(quizAnswers).length < activeQuiz.questions.length ? '#4b5563' : '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: Object.keys(quizAnswers).length < activeQuiz.questions.length ? 'not-allowed' : 'pointer', marginTop: '20px' }}>Submit Answers</button>
+                  <button 
+                    onClick={submitQuiz} 
+                    disabled={Object.keys(quizAnswers).length < activeQuiz.questions.length} 
+                    style={{ 
+                      padding: '14px', 
+                      background: Object.keys(quizAnswers).length < activeQuiz.questions.length ? '#334155' : '#10b981', 
+                      color: '#fff', 
+                      border: 'none', 
+                      borderRadius: '10px', 
+                      fontSize: '15px', 
+                      fontWeight: 'bold', 
+                      cursor: Object.keys(quizAnswers).length < activeQuiz.questions.length ? 'not-allowed' : 'pointer', 
+                      marginTop: '10px' 
+                    }}
+                  >
+                    Submit Answers ({Object.keys(quizAnswers).length} / {activeQuiz.questions.length})
+                  </button>
                 </div>
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       );
     }
 
     const currentVideo = selectedCourse.videos && selectedCourse.videos.length > 0 ? selectedCourse.videos[currentVideoIndex] : null;
 
+    const handleSelectVideo = (index) => {
+      // Videos 6-12 (index >= 5) are locked if Mid Quiz is not completed
+      if (index >= 5 && !courseProg.midCourseQuizCompleted) {
+        setActiveQuiz({ type: 'mid', questions: midQuizQuestions, title: 'Mid-Course Quiz (Required to unlock Videos 6–12)' });
+        return;
+      }
+      setCurrentVideoIndex(index);
+    };
+
     const handleNextVideo = () => {
-      // Force mid quiz exacty after 5 videos (index 4) if not completed
-      if (currentVideoIndex === 4 && !courseProg.midCourseQuizCompleted && selectedCourse.midCourseQuiz?.length > 0) {
-        setActiveQuiz({ type: 'mid', questions: selectedCourse.midCourseQuiz, title: 'Mid-Course Quiz' });
+      // Force mid quiz after 5 videos (index 4) if not completed
+      if (currentVideoIndex === 4 && !courseProg.midCourseQuizCompleted) {
+        setActiveQuiz({ type: 'mid', questions: midQuizQuestions, title: 'Mid-Course Quiz (After Video 5)' });
+      } else if (currentVideoIndex >= 4 && !courseProg.midCourseQuizCompleted) {
+        setActiveQuiz({ type: 'mid', questions: midQuizQuestions, title: 'Mid-Course Quiz (After Video 5)' });
       } else if (currentVideoIndex < totalVideos - 1) {
         setCurrentVideoIndex(prev => prev + 1);
       }
     };
 
-    return (
+    return createPortal(
       <div style={{
-        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-        backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex',
-        alignItems: 'center', justifyContent: 'center', padding: '40px'
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'rgba(5, 10, 25, 0.88)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
+        zIndex: 99999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+        boxSizing: 'border-box'
       }}>
         <div style={{
-          background: '#111827', width: '100%', maxWidth: '1200px', height: '90vh',
-          borderRadius: '16px', display: 'flex', flexDirection: 'column', overflow: 'hidden',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+          background: '#0f172a',
+          width: '100%',
+          maxWidth: '1240px',
+          height: '92vh',
+          borderRadius: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          position: 'relative'
         }}>
           {/* Header */}
-          <div style={{ padding: '20px', borderBottom: '1px solid #374151', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ color: '#fff', margin: 0, fontSize: '24px' }}>{selectedCourse.title}</h2>
+          <div style={{ padding: '16px 24px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#090d16', gap: '16px' }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <h2 style={{ color: '#fff', margin: 0, fontSize: '20px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selectedCourse.title}
+              </h2>
+              <p style={{ color: '#94a3b8', margin: '3px 0 0 0', fontSize: '13px' }}>
+                12-Module Program • Mid Quiz after Video 5 • Final Assessment after Video 12
+              </p>
+            </div>
             <button 
               onClick={() => { setSelectedCourse(null); setCurrentVideoIndex(0); }}
-              style={{ background: '#374151', color: '#fff', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}
+              style={{ background: '#1e293b', color: '#fff', border: '1px solid #334155', borderRadius: '50%', width: '38px', height: '38px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}
             >
               ✕
             </button>
           </div>
           
           {/* Content */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '30px', display: 'flex', flexDirection: 'column', gap: '40px' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '26px', boxSizing: 'border-box' }}>
             
+            {/* Automatic Certificate Generation Display when Course is Completed */}
             {courseCompleted && (
-              <div style={{ background: '#10b981', color: '#fff', padding: '30px', borderRadius: '12px', textAlign: 'center' }}>
-                <h2 style={{ margin: '0 0 20px 0', fontSize: '28px' }}>Your course has been completed. Download your certificate.</h2>
+              <div style={{ background: 'linear-gradient(135deg, #065f46 0%, #047857 100%)', color: '#fff', padding: '28px', borderRadius: '16px', textAlign: 'center', boxShadow: '0 10px 25px rgba(4,120,87,0.3)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ fontSize: '40px', marginBottom: '6px' }}>🎓 🏆</div>
+                <h2 style={{ margin: '0 0 8px 0', fontSize: '24px', fontWeight: 800 }}>Congratulations! Course Completed</h2>
+                <p style={{ color: '#a7f3d0', fontSize: '14.5px', maxWidth: '680px', margin: '0 auto 20px auto' }}>
+                  You have successfully watched all 12 modules and passed both the Mid-Course Quiz and Final Assessment. Your official certificate is ready!
+                </p>
                 <div style={{ display: 'flex', justifyContent: 'center', width: '100%', overflow: 'hidden' }}>
-                  <div style={{ transform: 'scale(0.8)', transformOrigin: 'top center' }}>
+                  <div style={{ transform: 'scale(0.85)', transformOrigin: 'top center', width: '100%', maxWidth: '1050px' }}>
                     <CertificateCard user={user} course={selectedCourse} />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Videos - Sequential */}
-            {!courseCompleted && currentVideo && (
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                  <h3 style={{ color: '#9ca3af', margin: 0, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Course Video {currentVideoIndex + 1} of {totalVideos}</h3>
-                  <span style={{ color: '#3b82f6', fontSize: '14px', fontWeight: 'bold' }}>{watchedSet.size} / {totalVideos} Watched</span>
+            {/* Video Player & Sequential Control */}
+            {currentVideo && (
+              <div style={{ width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                    <span style={{ background: '#2563eb', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '4px 10px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>
+                      Video {currentVideoIndex + 1} of {totalVideos}
+                    </span>
+                    <span style={{ color: '#f8fafc', fontSize: '14.5px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {currentVideo.name || `Module Lecture ${currentVideoIndex + 1}`}
+                    </span>
+                  </div>
+                  <span style={{ color: '#38bdf8', fontSize: '12.5px', fontWeight: 700, background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.25)', padding: '4px 12px', borderRadius: '20px', flexShrink: 0 }}>
+                    ✓ {watchedSet.size} / {totalVideos} Watched
+                  </span>
                 </div>
                 
-                <div style={{ background: '#1f2937', borderRadius: '12px', overflow: 'hidden' }}>
+                <div style={{ background: '#020617', borderRadius: '14px', overflow: 'hidden', border: '1px solid #1e293b', boxShadow: '0 15px 30px rgba(0,0,0,0.5)' }}>
                   <video 
                     key={currentVideo.url || currentVideoIndex}
                     ref={videoRef}
                     controls 
+                    playsInline
+                    preload="metadata"
+                    poster={getFullUrl(selectedCourse.image) || "/chemy2.png"}
                     src={getFullUrl(currentVideo.url)}
                     controlsList="nodownload"
                     onEnded={() => {
                       handleVideoEnded(currentVideo.url);
-                      if (currentVideoIndex === 4 && !courseProg.midCourseQuizCompleted && selectedCourse.midCourseQuiz?.length > 0) {
-                        setActiveQuiz({ type: 'mid', questions: selectedCourse.midCourseQuiz, title: 'Mid-Course Quiz' });
-                      } else if (currentVideoIndex === 11 && !courseProg.finalQuizCompleted && selectedCourse.finalAssessmentQuiz?.length > 0) {
-                        setActiveQuiz({ type: 'final', questions: selectedCourse.finalAssessmentQuiz, title: 'Final Assessment' });
+                      // Trigger Mid Quiz right after Video 5 ends
+                      if (currentVideoIndex === 4 && !courseProg.midCourseQuizCompleted) {
+                        setActiveQuiz({ type: 'mid', questions: midQuizQuestions, title: 'Mid-Course Quiz (After Video 5)' });
+                      } 
+                      // Trigger Final Quiz right after Video 12 ends
+                      else if (currentVideoIndex === totalVideos - 1 && !courseProg.finalQuizCompleted) {
+                        setActiveQuiz({ type: 'final', questions: finalQuizQuestions, title: 'Final Assessment Quiz (After Video 12)' });
                       }
                     }}
-                    style={{ width: '100%', height: '450px', objectFit: 'cover', background: '#000' }}
+                    style={{ width: '100%', height: '460px', objectFit: 'contain', background: '#000', display: 'block' }}
                   />
                   
-                  {/* Video Controls & Next Button */}
-                  <div style={{ padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#374151' }}>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <button onClick={handlePreview5s} style={{ padding: '8px 16px', background: '#4b5563', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-                        ⏪ Preview 5s
+                  {/* Video Navigation Bar */}
+                  <div style={{ padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#090d16', borderTop: '1px solid #1e293b', flexWrap: 'wrap', gap: '12px' }}>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <button onClick={handlePreview5s} style={{ padding: '8px 14px', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}>
+                        ⏪ -5s
                       </button>
-                      <button onClick={handleReview5s} style={{ padding: '8px 16px', background: '#4b5563', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-                        Review 5s ⏩
+                      <button onClick={handleReview5s} style={{ padding: '8px 14px', background: '#1e293b', color: '#f8fafc', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}>
+                        +5s ⏩
                       </button>
                     </div>
                     
-                    <div style={{ textAlign: 'right' }}>
-                      <h4 style={{ color: '#f3f4f6', margin: '0 0 5px 0', fontSize: '16px' }}>{currentVideo.name || `Video ${currentVideoIndex + 1}`}</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      {/* Mid Quiz Trigger Button after Video 5 */}
+                      {currentVideoIndex === 4 && !courseProg.midCourseQuizCompleted && (
+                        <button
+                          onClick={() => setActiveQuiz({ type: 'mid', questions: midQuizQuestions, title: 'Mid-Course Quiz (After Video 5)' })}
+                          style={{ padding: '9px 18px', background: '#d97706', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px', boxShadow: '0 4px 12px rgba(217,119,6,0.3)' }}
+                        >
+                          📝 Take Mid-Course Quiz (Required for Video 6+)
+                        </button>
+                      )}
+
+                      {/* Next Video button */}
                       {currentVideoIndex < totalVideos - 1 && (
                         <button 
                           onClick={handleNextVideo} 
-                          style={{ padding: '8px 16px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                          style={{ padding: '9px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}
                         >
                           Next Video ⏭️
                         </button>
                       )}
+
+                      {/* Final Quiz Trigger Button at Video 12 */}
                       {currentVideoIndex === totalVideos - 1 && !courseProg.finalQuizCompleted && (
-                         <button 
-                         onClick={() => setActiveQuiz({ type: 'final', questions: selectedCourse.finalAssessmentQuiz, title: 'Final Assessment' })}
-                         disabled={!finalQuizUnlocked}
-                         style={{ padding: '8px 16px', background: finalQuizUnlocked ? '#10b981' : '#4b5563', color: '#fff', border: 'none', borderRadius: '6px', cursor: finalQuizUnlocked ? 'pointer' : 'not-allowed', fontWeight: 'bold' }}
-                       >
-                         {finalQuizUnlocked ? 'Take Final Quiz 📝' : '🔒 Final Quiz Locked'}
-                       </button>
+                        <button 
+                          onClick={() => setActiveQuiz({ type: 'final', questions: finalQuizQuestions, title: 'Final Assessment Quiz (After Video 12)' })}
+                          disabled={!courseProg.midCourseQuizCompleted}
+                          style={{ padding: '9px 18px', background: courseProg.midCourseQuizCompleted ? '#059669' : '#334155', color: '#fff', border: 'none', borderRadius: '8px', cursor: courseProg.midCourseQuizCompleted ? 'pointer' : 'not-allowed', fontWeight: 700, fontSize: '13px', boxShadow: courseProg.midCourseQuizCompleted ? '0 4px 12px rgba(5,150,105,0.3)' : 'none' }}
+                        >
+                          {courseProg.midCourseQuizCompleted ? '🏆 Take Final Quiz & Unlock Certificate 📝' : '🔒 Final Quiz (Complete Mid Quiz First)'}
+                        </button>
                       )}
                     </div>
                   </div>
@@ -584,20 +807,102 @@ export default function StudentDashboard() {
               </div>
             )}
 
-            {/* PPTs */}
+            {/* Course 12-Module Checklist & Assessment Roadmap */}
+            <div style={{ background: '#1e293b', padding: '20px', borderRadius: '14px', border: '1px solid #334155' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                <h3 style={{ color: '#f8fafc', margin: 0, fontSize: '14px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                  📚 Course Modules & Assessment Milestones
+                </h3>
+                <span style={{ fontSize: '12.5px', color: '#94a3b8' }}>
+                  Progress: {watchedSet.size} of 12 Videos • Mid Quiz: {courseProg.midCourseQuizCompleted ? '✓ Passed' : 'Pending'} • Final Quiz: {courseProg.finalQuizCompleted ? '✓ Passed' : 'Pending'}
+                </span>
+              </div>
+
+              {/* Module Timeline Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px' }}>
+                {Array.from({ length: 12 }).map((_, idx) => {
+                  const isWatched = (selectedCourse.videos || [])[idx] ? watchedSet.has(selectedCourse.videos[idx].url) : false;
+                  const isCurrent = currentVideoIndex === idx;
+                  const isLocked = idx >= 5 && !courseProg.midCourseQuizCompleted;
+                  
+                  return (
+                    <div 
+                      key={idx}
+                      onClick={() => !isLocked && handleSelectVideo(idx)}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        background: isCurrent ? '#2563eb' : isWatched ? 'rgba(5, 150, 105, 0.25)' : isLocked ? '#0f172a' : '#334155',
+                        color: isLocked ? '#64748b' : '#fff',
+                        border: isCurrent ? '1px solid #60a5fa' : isWatched ? '1px solid #059669' : '1px solid #475569',
+                        cursor: isLocked ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', fontWeight: 700 }}>
+                        <span>Video #{idx + 1}</span>
+                        <span>{isWatched ? '✓ Watched' : isLocked ? '🔒 Locked' : isCurrent ? '▶ Playing' : '○'}</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: isLocked ? '#475569' : '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {(selectedCourse.videos || [])[idx]?.name || `Lecture ${idx + 1}`}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Milestones status row */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #334155' }}>
+                <div style={{ padding: '12px 16px', borderRadius: '10px', background: courseProg.midCourseQuizCompleted ? 'rgba(5, 150, 105, 0.2)' : '#0f172a', border: courseProg.midCourseQuizCompleted ? '1px solid #059669' : '1px solid #334155' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '3px' }}>
+                    📝 Mid-Course Quiz (After Video 5)
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: courseProg.midCourseQuizCompleted ? '#6ee7b7' : '#94a3b8' }}>
+                    {courseProg.midCourseQuizCompleted ? '✓ Completed — Videos 6–12 unlocked' : 'Required to unlock Videos 6 through 12'}
+                  </div>
+                </div>
+
+                <div style={{ padding: '12px 16px', borderRadius: '10px', background: courseProg.finalQuizCompleted ? 'rgba(5, 150, 105, 0.2)' : '#0f172a', border: courseProg.finalQuizCompleted ? '1px solid #059669' : '1px solid #334155' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '3px' }}>
+                    🏆 Final Assessment Quiz (After Video 12)
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: courseProg.finalQuizCompleted ? '#6ee7b7' : '#94a3b8' }}>
+                    {courseProg.finalQuizCompleted ? '✓ Completed — Certificate Issued' : 'Required to generate completion certificate'}
+                  </div>
+                </div>
+
+                <div style={{ padding: '12px 16px', borderRadius: '10px', background: courseCompleted ? 'rgba(5, 150, 105, 0.2)' : '#0f172a', border: courseCompleted ? '1px solid #059669' : '1px solid #334155' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', marginBottom: '3px' }}>
+                    🎓 Completion Certificate
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: courseCompleted ? '#6ee7b7' : '#94a3b8' }}>
+                    {courseCompleted ? '✓ Ready for High-Res PNG Download' : 'Auto-generated upon completing all 12 videos + quizzes'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* PPTs & Course Resources */}
             {selectedCourse.ppts && selectedCourse.ppts.length > 0 && (
               <div>
-                <h3 style={{ color: '#9ca3af', marginBottom: '15px', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Presentations & Resources</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <h3 style={{ color: '#94a3b8', marginBottom: '12px', fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                  📊 Course PPT Presentations & Resources
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px' }}>
                   {selectedCourse.ppts.map((ppt, idx) => (
-                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1f2937', padding: '15px 20px', borderRadius: '8px' }}>
-                      <span style={{ color: '#f3f4f6', fontWeight: '500' }}>{ppt.name || `Presentation ${idx + 1}`}</span>
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1e293b', padding: '12px 16px', borderRadius: '10px', border: '1px solid #334155' }}>
+                      <span style={{ color: '#f8fafc', fontWeight: '500', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: '10px' }}>
+                        {ppt.name || `Presentation ${idx + 1}`}
+                      </span>
                       <a 
                         href={getFullUrl(ppt.url)} 
                         target="_blank" 
                         rel="noreferrer"
                         download
-                        style={{ background: '#3b82f6', color: '#fff', textDecoration: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold' }}
+                        style={{ background: '#2563eb', color: '#fff', textDecoration: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', flexShrink: 0 }}
                       >
                         Download PPT
                       </a>
@@ -606,9 +911,11 @@ export default function StudentDashboard() {
                 </div>
               </div>
             )}
+
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   };
 

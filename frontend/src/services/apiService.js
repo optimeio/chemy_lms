@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
+import { getApiBaseUrl } from './apiConfig';
+
 const CLIENT_KEY = import.meta.env.VITE_CLIENT_KEY;
 const CLIENT_SECRET = import.meta.env.VITE_CLIENT_SECRET;
 
@@ -10,6 +11,7 @@ const defaultHeaders = {
 
 export const apiService = {
   async get(endpoint) {
+    const API_BASE_URL = getApiBaseUrl();
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'GET',
       headers: defaultHeaders
@@ -32,6 +34,7 @@ export const apiService = {
   },
 
   async post(endpoint, data) {
+    const API_BASE_URL = getApiBaseUrl();
     const isFormData = data instanceof FormData;
     const headers = { ...defaultHeaders };
     if (isFormData) delete headers['Content-Type'];
@@ -51,6 +54,7 @@ export const apiService = {
   },
 
   async put(endpoint, data) {
+    const API_BASE_URL = getApiBaseUrl();
     const isFormData = data instanceof FormData;
     const headers = { ...defaultHeaders };
     if (isFormData) delete headers['Content-Type'];
@@ -70,6 +74,7 @@ export const apiService = {
   },
 
   async delete(endpoint) {
+    const API_BASE_URL = getApiBaseUrl();
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'DELETE',
       headers: defaultHeaders

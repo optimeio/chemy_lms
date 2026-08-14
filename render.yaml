@@ -1,0 +1,12 @@
+services:
+  # Frontend - Static Site
+  - type: web
+    name: chemy-lms-frontend
+    env: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

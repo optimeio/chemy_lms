@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { AuthContext } from './auth-context';
+import { getApiBaseUrl } from '../services/apiConfig';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
+const API_BASE_URL = getApiBaseUrl();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
@@ -10,11 +11,16 @@ export function AuthProvider({ children }) {
   });
 
   const login = async ({ email, password, role = 'Student' }) => {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, role }),
-    });
+    let response;
+    try {
+      response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, role }),
+      });
+    } catch (networkErr) {
+      throw new Error('Unable to connect to server. If using Render free tier, the server may take 30-50s to wake up, or please ensure your backend is running.');
+    }
 
     let data;
     try {
@@ -39,6 +45,10 @@ export function AuthProvider({ children }) {
       dashboard: data.user.dashboard || 'a',
       college: data.user.college,
       department: data.user.department,
+      phone: data.user.phone || '',
+      year: data.user.year || '',
+      gender: data.user.gender || '',
+      profileImage: data.user.profileImage || '',
     };
 
     localStorage.setItem('user', JSON.stringify(safeUser));

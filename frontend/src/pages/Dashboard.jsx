@@ -127,6 +127,7 @@ const CertificateCard = ({ user, course }) => {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [user, setUser] = useState(() => {
     const storedUser = localStorage.getItem('user');
     return storedUser ? JSON.parse(storedUser) : { fullName: 'Technical Student' };
@@ -576,7 +577,9 @@ export default function Dashboard() {
       case 'Certificates': {
         const completedCourses = courses.filter(c => {
           const p = (user.progress || []).find(prog => String(prog.courseId) === String(c._id || c.id));
-          return p && p.finalQuizCompleted;
+          const totalVids = (c.videos && c.videos.length > 0) ? c.videos.length : 12;
+          const watchedAll = (p?.watchedVideos?.length || 0) >= Math.min(12, totalVids);
+          return p && p.midCourseQuizCompleted && p.finalQuizCompleted && watchedAll;
         });
 
         if (completedCourses.length === 0) {
@@ -693,8 +696,8 @@ export default function Dashboard() {
 
   return (
     <div className="lms-dashboard-wrapper">
-      {/* Sidebar navigation */}
-      <aside className="lms-sidebar">
+      {/* Sidebar navigation (desktop) */}
+      <aside className={`lms-sidebar ${isSidebarOpen ? 'mobile-visible' : ''}`}>
         <div className="lms-logo-area">
           <div className="lms-logo-icon">
             <span className="logo-accent-red"></span>
@@ -741,14 +744,73 @@ export default function Dashboard() {
         </div>
       </aside>
 
-      {/* Main panel */}
+      {/* Mobile Sidebar (overlay) */}
+      <div className={`mobile-sidebar ${isSidebarOpen ? 'active' : ''}`}>
+        <aside className="lms-sidebar">
+          {/* Duplicate the sidebar content for mobile */}
+          <div className="lms-logo-area">
+            <div className="lms-logo-icon">
+              <span className="logo-accent-red"></span>
+            </div>
+            <div className="lms-logo-text">
+              <h2>CHEMY LMS</h2>
+              <p>excellence online</p>
+            </div>
+          </div>
+          <div className="lms-menu-section">
+            <span className="lms-menu-title">MAIN MENU</span>
+            <ul className="lms-menu-list">
+              {menuItems.map(item => (
+                <li key={item.name}>
+                  <button onClick={() => { setActiveTab(item.name); setIsSidebarOpen(false); }} className={`lms-menu-item ${activeTab === item.name ? 'active' : ''}`}>
+                    <span className="menu-icon-span">{item.icon}</span>
+                    <span className="menu-text-span">{item.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="lms-sidebar-footer">
+            <button onClick={() => navigate('/login')} className="lms-back-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="back-icon-svg" style={{ marginRight: '2px' }}>
+                <line x1="19" y1="12" x2="5" y2="12" />
+                <polyline points="12 19 5 12 12 5" />
+              </svg>
+              <span>Back to Login</span>
+            </button>
+            <button onClick={handleSignOut} className="lms-signout-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="logout-icon-svg">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              <span>Sign Out</span>
+            </button>
+          </div>
+        </aside>
+      </div>
+
       <main className="lms-main-content">
-        {/* Top header bar */}
-        <header className="lms-header-bar">
+        <header className="lms-dashboard-header">
           <div className="lms-header-info">
             <h1>Learning Dashboard</h1>
             <p>Empowering your technical journey in IoT & EV Engineering</p>
           </div>
+          {/* Mobile Hamburger (visible on small screens) */}
+          <button
+            className={`hamburger ${isSidebarOpen ? 'open' : ''}`}
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            aria-label="Toggle navigation menu"
+            aria-expanded={isSidebarOpen}
+            style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            <span style={{ display: 'block', width: '25px', height: '3px', background: '#333', margin: '5px 0' }}></span>
+            <span style={{ display: 'block', width: '25px', height: '3px', background: '#333', margin: '5px 0' }}></span>
+            <span style={{ display: 'block', width: '25px', height: '3px', background: '#333', margin: '5px 0' }}></span>
+          </button>
+          {/* Mobile overlay */}
+          {isSidebarOpen && (<div className="mobile-overlay" onClick={() => setIsSidebarOpen(false)} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.3)', zIndex: 99 }}></div>)}
+          
           <div className="lms-user-profile">
             <div className="lms-user-avatar" title={user.fullName}>
               {initialLetter}

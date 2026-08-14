@@ -36,6 +36,7 @@ export default function DashboardShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   if (!user) {
     return null;
@@ -64,12 +65,28 @@ export default function DashboardShell() {
         navigate(allowedPath);
       }
       setActiveTab(key);
+      setIsMobileMenuOpen(false); // Close menu on mobile after selection
     }
   };
 
   return (
     <main className={styles.dashboardShell}>
-      <aside className={styles.sidebar} aria-label="Dashboard navigation">
+      {/* Mobile Header Toggle (Only visible on small screens) */}
+      <div className={styles.mobileHeader}>
+        <div className={styles.brandBlock} style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
+          <img src="/chemy2.png" alt="Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
+          <span className={styles.brandName} style={{ fontSize: '18px' }}>CHEMY LMS</span>
+        </div>
+        <button 
+          className={styles.mobileMenuButton} 
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label="Toggle Menu"
+        >
+          {isMobileMenuOpen ? '✕' : '☰'}
+        </button>
+      </div>
+
+      <aside className={`${styles.sidebar} ${isMobileMenuOpen ? styles.sidebarOpen : ''}`} aria-label="Dashboard navigation">
         <div className={styles.brandBlock} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <img src="/chemy2.png" alt="Logo" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
           <div>
@@ -124,11 +141,17 @@ export default function DashboardShell() {
             <button type="button" className={styles.iconButton} aria-label="Messages">
               ✉️
             </button>
-            <img 
-              src={user.profilePhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName)}&background=2563EB&color=fff`} 
-              alt="Profile Avatar" 
-              className={styles.avatar} 
-            />
+            {(() => {
+              const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
+              const serverBaseUrl = API_BASE_URL.replace('/api', '');
+              const rawImg = user.profileImage;
+              const avatarSrc = rawImg
+                ? (rawImg.startsWith('http') || rawImg.startsWith('blob:') || rawImg.startsWith('data:')
+                    ? rawImg
+                    : `${serverBaseUrl}${rawImg}`)
+                : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName)}&background=2563EB&color=fff`;
+              return <img src={avatarSrc} alt="Profile Avatar" className={styles.avatar} />;
+            })()}
           </div>
         </header>
 

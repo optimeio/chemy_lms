@@ -451,7 +451,20 @@
   color: var(--text-secondary);
 }
 
-/* RESPONSIVE LAYOUTS */
+/* ==================== HAMBURGER BUTTON ==================== */
+/* Hidden on desktop by default */
+.hamburger {
+  display: none;
+}
+
+/* ==================== MOBILE SIDEBAR OVERLAY ==================== */
+/* Hidden on desktop by default */
+.mobile-sidebar {
+  display: none;
+}
+
+/* ==================== RESPONSIVE LAYOUTS ==================== */
+
 @media (max-width: 1024px) {
   .lms-stats-row {
     grid-template-columns: repeat(2, 1fr);
@@ -459,64 +472,171 @@
 }
 
 @media (max-width: 768px) {
-  .lms-sidebar {
-    width: 70px;
-    padding: 20px 10px;
-  }
-
-  .lms-logo-text,
-  .lms-menu-title,
-  .menu-text-span,
-  .lms-signout-btn span {
+  /* --- Hide the desktop sidebar completely --- */
+  .lms-dashboard-wrapper > .lms-sidebar {
     display: none;
   }
 
-  .lms-logo-area {
-    padding-left: 0;
-    justify-content: center;
-  }
-
-  .lms-menu-item {
-    justify-content: center;
-    padding: 12px;
-  }
-
-  .lms-signout-btn {
-    justify-content: center;
-    padding: 12px;
-  }
-
-  .lms-main-content {
-    margin-left: 70px;
-    padding: 24px;
-  }
-
-  .lms-header-bar {
+  /* --- Show hamburger button on mobile --- */
+  .hamburger {
+    display: flex !important;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: var(--bg-card, #fff) !important;
+    border: 1px solid var(--border-color, #e2e8f0) !important;
+    border-radius: 8px;
+    cursor: pointer;
+    z-index: 110;
+    position: relative;
+    top: auto;
+    right: auto;
+    padding: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: all 0.2s ease;
+  }
+
+  .hamburger span {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: var(--text-primary, #333) !important;
+    margin: 2px 0;
+    border-radius: 2px;
+    transition: all 0.3s ease;
+  }
+
+  .hamburger.open span:nth-child(1) {
+    transform: rotate(45deg) translate(4px, 4px);
+  }
+  .hamburger.open span:nth-child(2) {
+    opacity: 0;
+  }
+  .hamburger.open span:nth-child(3) {
+    transform: rotate(-45deg) translate(4px, -4px);
+  }
+
+  /* --- Mobile sidebar overlay panel --- */
+  .mobile-sidebar {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: -280px;
+    width: 280px;
+    height: 100vh;
+    z-index: 200;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+  }
+
+  .mobile-sidebar.active {
+    left: 0;
+  }
+
+  .mobile-sidebar .lms-sidebar {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 30px 20px;
+    background-color: var(--sidebar-bg, #1e293b);
+    border-right: 1px solid var(--border-color, #334155);
+    z-index: 201;
+  }
+
+  .mobile-sidebar .lms-logo-text,
+  .mobile-sidebar .lms-menu-title,
+  .mobile-sidebar .menu-text-span,
+  .mobile-sidebar .lms-signout-btn span,
+  .mobile-sidebar .lms-back-btn span {
+    display: inline;
+  }
+
+  .mobile-sidebar .lms-menu-item {
+    justify-content: flex-start;
+    padding: 10px 12px;
+  }
+
+  .mobile-sidebar .lms-signout-btn,
+  .mobile-sidebar .lms-back-btn {
+    justify-content: flex-start;
+  }
+
+  /* --- Mobile overlay backdrop --- */
+  .mobile-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4) !important;
+    z-index: 150 !important;
+    backdrop-filter: blur(2px);
+  }
+
+  /* --- Main content takes full width on mobile --- */
+  .lms-main-content {
+    margin-left: 0;
+    width: 100%;
+    padding: 20px 16px;
+  }
+
+  /* --- Header adjustments --- */
+  .lms-dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    position: relative;
+  }
+
+  .lms-header-info h1 {
+    font-size: 20px;
+  }
+
+  .lms-header-info p {
+    font-size: 12px;
   }
 
   .lms-user-profile {
     align-self: flex-end;
   }
 
+  /* --- Banner card stacks vertically --- */
   .lms-banner-card {
     flex-direction: column;
     align-items: flex-start;
-    gap: 20px;
-    padding: 20px;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .banner-left {
+    flex-direction: column;
+    gap: 12px;
   }
 
   .lms-banner-btn {
     width: 100%;
     justify-content: center;
+    padding: 10px 16px;
+    font-size: 13px;
   }
 
+  /* --- Stats single column --- */
   .lms-stats-row {
     grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
   }
 
+  .lms-stat-card {
+    padding: 16px 20px;
+  }
+
+  /* --- Progress/course sections --- */
   .progress-section-header {
     flex-direction: column;
     align-items: flex-start;
@@ -525,6 +645,68 @@
 
   .lms-search-input {
     width: 100%;
+  }
+
+  /* --- Course grid single column on mobile --- */
+  .lms-courses-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  /* --- Empty state card padding --- */
+  .lms-empty-state-card {
+    padding: 40px 20px;
+  }
+
+  /* --- Profile card full width --- */
+  .lms-profile-card {
+    max-width: 100% !important;
+    padding: 20px !important;
+  }
+
+  .lms-profile-card > div:last-child {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  /* --- Course detail adjustments --- */
+  .lms-course-detail {
+    padding: 16px !important;
+  }
+
+  .lms-course-detail h2 {
+    font-size: 20px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .lms-main-content {
+    padding: 16px 12px;
+  }
+
+  .lms-header-info h1 {
+    font-size: 18px;
+  }
+
+  .lms-stat-card {
+    padding: 14px 16px;
+    gap: 14px;
+  }
+
+  .stat-value {
+    font-size: 20px;
+  }
+
+  .lms-banner-card {
+    padding: 14px;
+  }
+
+  .banner-info h3 {
+    font-size: 14px;
+  }
+
+  .banner-info p {
+    font-size: 12px;
   }
 }
 

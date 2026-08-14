@@ -17,13 +17,31 @@ let PORT = DEFAULT_PORT;
 let serverStarted = false;
 let server;
 
-// Middleware — handle CORS preflight explicitly
+// Middleware — handle CORS preflight dynamically
+const allowedOrigins = [
+  'https://chemy-lms-1.onrender.com',
+  'https://chemy-lms.onrender.com',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000'
+];
+
 app.use(cors({
-  origin: [
-    'https://chemy-lms-1.onrender.com',
-    'http://localhost:5173'
-  ],
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (
+      allowedOrigins.indexOf(origin) !== -1 ||
+      /^http:\/\/localhost(:\d+)?$/.test(origin) ||
+      /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin) ||
+      /\.onrender\.com$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-client-key', 'x-client-secret'],
   credentials: true
 }));
 app.use(express.json({ limit: '500mb' }));
@@ -99,7 +117,75 @@ const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
-app.use('/uploads', express.static(UPLOADS_DIR));
+
+// Custom streaming handler for /uploads — supports HTTP Range requests for video playback
+app.get('/uploads/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(UPLOADS_DIR, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+
+  const stat = fs.statSync(filePath);
+  const fileSize = stat.size;
+  const range = req.headers.range;
+
+  // Determine MIME type
+  const ext = path.extname(filename).toLowerCase();
+  const mimeTypes = {
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
+    '.ogg': 'video/ogg',
+    '.mov': 'video/quicktime',
+    '.avi': 'video/x-msvideo',
+    '.mkv': 'video/x-matroska',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.pdf': 'application/pdf',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    '.ppt': 'application/vnd.ms-powerpoint',
+  };
+  const contentType = mimeTypes[ext] || 'application/octet-stream';
+
+  // Handle Range request (required for video streaming/seeking)
+  if (range) {
+    const parts = range.replace(/bytes=/, '').split('-');
+    const start = parseInt(parts[0], 10);
+    // Clamp end to last byte; browser may request beyond file size
+    const end = Math.min(parts[1] ? parseInt(parts[1], 10) : fileSize - 1, fileSize - 1);
+    const chunkSize = end - start + 1;
+
+    if (start >= fileSize || start > end) {
+      res.status(416).set({
+        'Content-Range': `bytes */${fileSize}`,
+      }).end();
+      return;
+    }
+
+    const fileStream = fs.createReadStream(filePath, { start, end });
+    res.status(206).set({
+      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': chunkSize,
+      'Content-Type': contentType,
+      'Cache-Control': 'no-cache',
+    });
+    fileStream.pipe(res);
+  } else {
+    // Full file response (still set Accept-Ranges so browser knows streaming is supported)
+    res.status(200).set({
+      'Content-Length': fileSize,
+      'Content-Type': contentType,
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': 'no-cache',
+    });
+    fs.createReadStream(filePath).pipe(res);
+  }
+});
 
 const multer = require('multer');
 const storage = multer.diskStorage({
@@ -228,6 +314,9 @@ const certificateSchema = new mongoose.Schema({
   userName: String,
   courseId: String,
   courseTitle: String,
+  college: String,
+  department: String,
+  year: String,
   issuedDate: { type: Date, default: Date.now },
   downloadedAt: { type: Date, default: null },
   certificateData: String, // Base64 encoded certificate image
@@ -462,9 +551,6 @@ app.post('/api/auth/login', async (req, res) => {
     if (!email || !password) {
       return res.json({ success: false, message: 'Email and password are required.' });
     }
-    if (!email || !password) {
-  return res.json({ success: false, message: 'Email and password are required.' });
-}
 
     // Hardcoded admin account
     if (
@@ -1108,17 +1194,31 @@ app.post('/api/admin/users/:email/assign', async (req, res) => {
   }
 });
 
-app.put('/api/users/:email/profile', async (req, res) => {
+app.put('/api/users/:email/profile', upload.single('profileImageFile'), async (req, res) => {
   try {
     const { email } = req.params;
     const { fullName, college, department, year, profileImage } = req.body;
+
+    // If a new image file was uploaded via multipart, save it to disk and use the URL
+    let finalProfileImage = profileImage || '';
+    if (req.file) {
+      // Delete old profile image if it was a local upload
+      if (finalProfileImage && finalProfileImage.startsWith('/uploads/')) {
+        deleteUploadedFile(finalProfileImage);
+      }
+      finalProfileImage = `/uploads/${req.file.filename}`;
+    } else if (profileImage && profileImage.startsWith('data:')) {
+      // Legacy: if base64 is sent, save it to disk instead of storing in DB
+      const savedPath = saveUploadedFile(profileImage, `profile_${Date.now()}.png`);
+      if (savedPath) finalProfileImage = savedPath;
+    }
 
     let updated = null;
     if (isMongoConnected) {
       updated = await User.findOneAndUpdate(
         { email },
-        { fullName, college, department, year, profileImage },
-        { new: true }
+        { fullName, college, department, year, profileImage: finalProfileImage },
+        { new: true, projection: { password: 0 } }
       );
     }
 
@@ -1134,9 +1234,10 @@ app.put('/api/users/:email/profile', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Student not found.' });
     }
 
-    localUsers[index] = { ...localUsers[index], fullName, college, department, year, profileImage };
+    localUsers[index] = { ...localUsers[index], fullName, college, department, year, profileImage: finalProfileImage };
     fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
-    return res.json({ success: true, message: 'Profile updated locally!', user: localUsers[index] });
+    const { password: _pw, ...userWithoutPassword } = localUsers[index];
+    return res.json({ success: true, message: 'Profile updated locally!', user: userWithoutPassword });
   } catch (err) {
     console.error('Error updating profile:', err);
     res.status(500).json({ success: false, message: 'Server error updating profile.' });
@@ -1225,6 +1326,43 @@ app.post('/api/users/:email/progress', async (req, res) => {
         courseProgress.finalQuizCompleted = finalQuizCompleted;
       }
 
+      // Automatic Certificate Generation Check
+      // Condition: Mid Quiz completed + Final Quiz completed + Watched all videos (>= 12 or total course videos)
+      if (courseProgress.midCourseQuizCompleted && courseProgress.finalQuizCompleted) {
+        try {
+          let courseDoc = await Course.findById(courseId).catch(() => null);
+          if (!courseDoc) {
+            const localCourses = getLocalCourses();
+            courseDoc = localCourses.find(c => String(c._id || c.id) === String(courseId) || c.title === courseId);
+          }
+          const cTitle = courseDoc?.title || 'PCB DESIGN';
+          const requiredVideos = courseDoc?.videos?.length || 12;
+
+          if (courseProgress.watchedVideos.length >= Math.min(12, requiredVideos)) {
+            const existingCert = await Certificate.findOne({ userEmail: user.email, courseId: String(courseId) });
+            if (!existingCert) {
+              const newCert = new Certificate({
+                userId: user.email,
+                userEmail: user.email,
+                userName: user.fullName,
+                courseId: String(courseId),
+                courseTitle: cTitle,
+                college: user.college,
+                department: user.department,
+                year: user.year,
+                issuedDate: new Date(),
+                status: 'generated',
+                downloadedAt: null
+              });
+              await newCert.save();
+              console.log(`✅ Automatic certificate generated for ${user.email} - ${cTitle}`);
+            }
+          }
+        } catch (autoCertErr) {
+          console.warn('Auto cert generation Mongo notice:', autoCertErr.message);
+        }
+      }
+
       await user.save();
       return res.json({ success: true, progress: user.progress });
     }
@@ -1256,6 +1394,40 @@ app.post('/api/users/:email/progress', async (req, res) => {
       courseProgress.finalQuizCompleted = finalQuizCompleted;
     }
 
+    // Local Automatic Certificate Generation Check
+    if (courseProgress.midCourseQuizCompleted && courseProgress.finalQuizCompleted) {
+      try {
+        const localCourses = getLocalCourses();
+        const courseDoc = localCourses.find(c => String(c._id || c.id) === String(courseId) || c.title === courseId);
+        const cTitle = courseDoc?.title || 'PCB DESIGN';
+        const requiredVideos = courseDoc?.videos?.length || 12;
+
+        if (courseProgress.watchedVideos.length >= Math.min(12, requiredVideos)) {
+          const localCerts = getLocalCertificates();
+          if (!localCerts.some(c => c.userEmail === localUser.email && (String(c.courseId) === String(courseId) || c.courseTitle === cTitle))) {
+            localCerts.push({
+              id: `CERT_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+              userId: localUser.email,
+              userEmail: localUser.email,
+              userName: localUser.fullName,
+              courseId: String(courseId),
+              courseTitle: cTitle,
+              college: localUser.college,
+              department: localUser.department,
+              year: localUser.year,
+              issuedDate: new Date(),
+              status: 'generated',
+              downloadedAt: null
+            });
+            saveLocalCertificates(localCerts);
+            console.log(`✅ Automatic certificate generated (local) for ${localUser.email} - ${cTitle}`);
+          }
+        }
+      } catch (localCertErr) {
+        console.warn('Auto cert generation local notice:', localCertErr.message);
+      }
+    }
+
     fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
     return res.json({ success: true, progress: localUser.progress });
   } catch (err) {
@@ -1269,7 +1441,7 @@ app.post('/api/users/:email/progress', async (req, res) => {
 // Save/Upload Certificate
 app.post('/api/certificates/save', async (req, res) => {
   try {
-    const { userEmail, userName, courseId, courseTitle } = req.body;
+    const { userEmail, userName, courseId, courseTitle, college, department, year } = req.body;
 
     if (!userEmail || !courseId) {
       return res.status(400).json({ success: false, message: 'Missing required fields.' });
@@ -1282,6 +1454,9 @@ app.post('/api/certificates/save', async (req, res) => {
       userName,
       courseId,
       courseTitle,
+      college: college || '',
+      department: department || '',
+      year: year || '',
       issuedDate: new Date(),
       status: 'generated',
       downloadedAt: null
@@ -1289,6 +1464,10 @@ app.post('/api/certificates/save', async (req, res) => {
 
     if (isMongoConnected) {
       try {
+        const existing = await Certificate.findOne({ userEmail, courseId });
+        if (existing) {
+          return res.json({ success: true, message: 'Certificate already exists.', certificateId: existing._id });
+        }
         const certificate = new Certificate(certificateData);
         await certificate.save();
         return res.json({ success: true, message: 'Certificate saved successfully.', certificateId: certificate._id });
@@ -1299,13 +1478,36 @@ app.post('/api/certificates/save', async (req, res) => {
 
     // Fallback to local storage
     const certificates = getLocalCertificates();
-    certificates.push(certificateData);
-    saveLocalCertificates(certificates);
+    const existsLocally = certificates.some(c => c.userEmail === userEmail && String(c.courseId) === String(courseId));
+    if (!existsLocally) {
+      certificates.push(certificateData);
+      saveLocalCertificates(certificates);
+    }
 
     res.json({ success: true, message: 'Certificate saved successfully.', certificateId: certificateData.id });
   } catch (err) {
     console.error('Error saving certificate:', err);
     res.status(500).json({ success: false, message: 'Server error saving certificate.' });
+  }
+});
+
+// Get All Certificates for Admin
+app.get('/api/admin/certificates', async (req, res) => {
+  try {
+    if (isMongoConnected) {
+      try {
+        const certificates = await Certificate.find().sort({ issuedDate: -1 });
+        return res.json({ success: true, certificates });
+      } catch (mongoErr) {
+        console.warn('MongoDB query failed, falling back to local storage:', mongoErr.message);
+      }
+    }
+
+    const certificates = getLocalCertificates().sort((a, b) => new Date(b.issuedDate) - new Date(a.issuedDate));
+    res.json({ success: true, certificates });
+  } catch (err) {
+    console.error('Error fetching admin certificates:', err);
+    res.status(500).json({ success: false, message: 'Server error fetching certificates.' });
   }
 });
 

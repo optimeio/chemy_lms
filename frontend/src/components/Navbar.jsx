@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import '../styles/Navbar.css';
 
@@ -6,6 +6,15 @@ export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem('user'));
+
+  // Prevent background scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.classList.add('no-scroll');
+    } else {
+      document.body.classList.remove('no-scroll');
+    }
+  }, [isMobileMenuOpen]);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -84,6 +93,8 @@ export default function Navbar() {
           <span></span>
           <span></span>
         </button>
+        {/* Mobile overlay */}
+        {isMobileMenuOpen && (<div className="mobile-overlay" onClick={toggleMobileMenu} />)}
       </div>
 
       {/* Mobile Menu */}
