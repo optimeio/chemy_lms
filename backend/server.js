@@ -19,10 +19,12 @@ let server;
 
 // Middleware — handle CORS preflight explicitly
 app.use(cors({
-  origin: true,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-client-key', 'x-client-secret'],
+  origin: [
+    'https://chemy-lms-1.onrender.com',
+    'http://localhost:5173'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  credentials: true
 }));
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
@@ -460,6 +462,9 @@ app.post('/api/auth/login', async (req, res) => {
     if (!email || !password) {
       return res.json({ success: false, message: 'Email and password are required.' });
     }
+    if (!email || !password) {
+  return res.json({ success: false, message: 'Email and password are required.' });
+}
 
     // Hardcoded admin account
     if (

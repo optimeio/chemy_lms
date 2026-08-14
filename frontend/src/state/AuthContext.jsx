@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { AuthContext } from './auth-context';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const storedUser = localStorage.getItem('user');
@@ -8,15 +10,21 @@ export function AuthProvider({ children }) {
   });
 
   const login = async ({ email, password, role = 'Student' }) => {
-    const response = await fetch('/api/auth/login', {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, role }),
     });
 
-    const data = await response.json();
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error('Backend server returned an invalid response. If using Render free tier, the backend may take 30-50s to wake up.');
+    }
+
     if (!response.ok || !data.success) {
-      throw new Error(data.message || 'Unable to sign in. Please check your email and password.');
+      throw new Error(data?.message || 'Unable to sign in. Please check your email and password.');
     }
 
     const returnedRole = data.user.role || 'Student';
