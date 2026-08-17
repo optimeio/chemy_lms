@@ -23,7 +23,7 @@
     "phone": "6969067085",
     "password": "ramya2507",
     "gender": "Male",
-    "year": "IV Year",
+    "year": "II Year",
     "district": "Salem",
     "college": "Sona College of Technology",
     "department": "CSE",
@@ -37,13 +37,25 @@
       {
         "courseId": "6a796901fea2a12a51c8583d",
         "watchedVideos": [
-          "/uploads/1786603760536_Day_01_(1).mp4"
+          "/uploads/1786603760536_Day_01_(1).mp4",
+          "/uploads/1786603760579_Day_02.mp4",
+          "/uploads/1786603760609_Day_03.mp4",
+          "/uploads/1786603760640_Day_04.mp4",
+          "/uploads/1786603760679_Day_05_-_Copy.mp4",
+          "/uploads/1786603760743_Day_06.mp4",
+          "/uploads/1786603760768_Day_07.mp4",
+          "/uploads/1786603760807_Day_08_-_Copy_(3).mp4",
+          "/uploads/1786603760860_Day_09_-_Copy_(3).mp4",
+          "/uploads/1786603760922_Day_10_-_Copy_(2).mp4",
+          "/uploads/1786603760982_Day_11_-_Copy_(3).mp4",
+          "/uploads/1786603761029_Day_12_-_Copy_(3).mp4"
         ],
         "midCourseQuizCompleted": true,
         "finalQuizCompleted": true
       }
     ],
-    "createdAt": "2026-06-17T12:24:00.433Z"
+    "createdAt": "2026-06-17T12:24:00.433Z",
+    "profileImage": "/uploads/1786955980513_chemy_logo_.png"
   },
   {
     "fullName": "Test Student",

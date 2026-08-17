@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../state/useAuth';
 import { apiService } from '../services/apiService';
+import { getFullMediaUrl } from '../services/apiConfig';
 
 export default function CoursePlayer() {
   const { courseId } = useParams();
@@ -13,6 +14,7 @@ export default function CoursePlayer() {
   const [activeQuiz, setActiveQuiz] = useState(null);
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizScore, setQuizScore] = useState(null);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -52,19 +54,17 @@ export default function CoursePlayer() {
     fetchData();
   }, [courseId, user]);
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
-  const serverBaseUrl = API_BASE_URL.replace('/api', '');
-  const getFullUrl = (url) => {
-    if (!url) return '';
-    if (url.startsWith('http')) return url;
-    return `${serverBaseUrl}${url}`;
-  };
+  const getFullUrl = getFullMediaUrl;
 
   const courseProg = userProgress.find(p => String(p.courseId) === String(course?._id || course?.id)) || { watchedVideos: [], midCourseQuizCompleted: false, finalQuizCompleted: false };
   const watchedSet = new Set(courseProg.watchedVideos || []);
+  const processedVideos = useRef(new Set());
 
   const handleVideoEnded = async (videoUrl) => {
     if (!course || !user) return;
+    if (processedVideos.current.has(videoUrl)) return;
+    processedVideos.current.add(videoUrl);
+
     try {
       await apiService.post(`/users/${encodeURIComponent(user.email)}/progress`, {
         courseId: course._id || course.id,
@@ -84,6 +84,29 @@ export default function CoursePlayer() {
       });
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleTimeUpdate = (e) => {
+    const video = e.target;
+    if (video.duration && video.currentTime / video.duration >= 0.75) {
+      const currentUrl = course.videos[currentVideoIndex]?.url;
+      if (currentUrl && !watchedSet.has(currentUrl)) {
+        handleVideoEnded(currentUrl);
+      }
+    }
+  };
+
+  const handleVideoSelect = (index) => {
+    if (index === 0 || index === currentVideoIndex) {
+      setCurrentVideoIndex(index);
+      return;
+    }
+    const prevUrl = course.videos[index - 1]?.url;
+    if (prevUrl && watchedSet.has(prevUrl)) {
+      setCurrentVideoIndex(index);
+    } else {
+      alert("Please watch at least 75% of the previous video to unlock this one.");
     }
   };
 
@@ -115,9 +138,17 @@ export default function CoursePlayer() {
           alignItems: 'start'
         }}>
           <div style={{ minWidth: 0 }}>
-            {course.videos && course.videos.length > 0 && (
+            {course.videos && course.videos.length > 0 && course.videos[currentVideoIndex] && (
               <div style={{ background: '#0f1724', padding: 12, borderRadius: 8, overflow: 'hidden' }}>
-                <video controls controlsList="nodownload" src={getFullUrl(course.videos[0].url)} style={{ width: '100%', height: 'auto', aspectRatio: '16/9', objectFit: 'cover' }} onEnded={() => handleVideoEnded(course.videos[0].url)} />
+                <video 
+                  controls 
+                  controlsList="nodownload" 
+                  src={getFullUrl(course.videos[currentVideoIndex].url)} 
+                  style={{ width: '100%', height: 'auto', aspectRatio: '16/9', objectFit: 'cover' }} 
+                  onEnded={() => handleVideoEnded(course.videos[currentVideoIndex].url)} 
+                  onTimeUpdate={handleTimeUpdate}
+                  key={currentVideoIndex}
+                />
               </div>
             )}
 
@@ -138,11 +169,34 @@ export default function CoursePlayer() {
           <aside style={{ background: '#fff', borderRadius: 8, padding: 'clamp(8px, 2vw, 12px)', minWidth: 0 }}>
             <h4 style={{ marginTop: 0, fontSize: 'clamp(16px, 4vw, 18px)' }}>Module Checklist</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {(course.videos || []).map((v, i) => (
-                <div key={i} style={{ padding: 'clamp(8px, 2vw, 10px)', borderRadius: 8, background: watchedSet.has(v.url) ? '#ecfdf5' : '#f3f4f6', wordBreak: 'break-word', fontSize: 'clamp(13px, 2vw, 14px)' }}>
-                  {v.name || `Video ${i + 1}`}
-                </div>
-              ))}
+              {(course.videos || []).map((v, i) => {
+                const isUnlocked = i === 0 || watchedSet.has(course.videos[i - 1]?.url);
+                const isCurrent = i === currentVideoIndex;
+                const isCompleted = watchedSet.has(v.url);
+                
+                return (
+                  <div 
+                    key={i} 
+                    onClick={() => handleVideoSelect(i)}
+                    style={{ 
+                      padding: 'clamp(8px, 2vw, 10px)', 
+                      borderRadius: 8, 
+                      background: isCurrent ? '#dbeafe' : isCompleted ? '#ecfdf5' : '#f3f4f6', 
+                      wordBreak: 'break-word', 
+                      fontSize: 'clamp(13px, 2vw, 14px)',
+                      cursor: isUnlocked ? 'pointer' : 'not-allowed',
+                      border: isCurrent ? '2px solid #3b82f6' : '2px solid transparent',
+                      opacity: isUnlocked ? 1 : 0.6
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>{v.name || `Video ${i + 1}`}</span>
+                      {isCompleted && <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 'bold' }}>✓</span>}
+                      {!isUnlocked && <span style={{ fontSize: '12px', color: '#6b7280' }}>🔒</span>}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </aside>
         </div>

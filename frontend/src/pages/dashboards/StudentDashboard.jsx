@@ -1,10 +1,11 @@
-import { useOutletContext, useNavigate } from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../state/useAuth';
 import { apiService } from '../../services/apiService';
 import html2canvas from 'html2canvas';
 import { midCourseQuizTemplate, finalAssessmentQuizTemplate } from '../../data/iotQuizTemplate';
+import { getFullMediaUrl } from '../../services/apiConfig';
 import styles from '../../styles/StudentDashboard.module.css';
 
 
@@ -94,31 +95,31 @@ const CertificateCard = ({ user, course }) => {
             }}
           />
 
-          <div style={{ ...certificateFieldStyle, left: '34.7%', top: '31.3%', width: '31.5%', height: '4.5%', fontSize: 'min(22px, 2.09cqw)' }}>
+          <div style={{ ...certificateFieldStyle, top: '51%', left: '30%', width: '45%', height: '4%', fontSize: 'min(22px, 2.09cqw)' }}>
             {studentName}
           </div>
 
-          <div style={{ ...certificateFieldStyle, left: '18.2%', top: '39.2%', width: '20.9%', height: '4.2%', fontSize: 'min(17px, 1.61cqw)' }}>
+          <div style={{ ...certificateFieldStyle, left: '10%', top: '62.0%', width: '36%', height: '4%', fontSize: 'min(17px, 1.61cqw)' }}>
             {institutionName}
           </div>
 
-          <div style={{ ...certificateFieldStyle, left: '51.3%', top: '39.2%', width: '16.9%', height: '4.2%', fontSize: 'min(17px, 1.61cqw)' }}>
+          <div style={{ ...certificateFieldStyle, left: '20%', top: '56%', width: '38%', height: '4%', fontSize: 'min(17px, 1.61cqw)' }}>
             {departmentName}
           </div>
 
-          <div style={{ ...certificateFieldStyle, left: '23.4%', top: '49.3%', width: '53.2%', height: '4.8%', fontSize: 'min(19px, 1.8cqw)' }}>
+          <div style={{ ...certificateFieldStyle, left: '60%', top: '56%', width: '45%', height: '4%', fontSize: 'min(14px, 1.8cqw)' }}>
             {courseName}
           </div>
 
-          <div style={{ ...certificateFieldStyle, left: '66.5%', top: '60.4%', width: '13.5%', height: '4.2%', fontSize: 'min(17px, 1.61cqw)' }}>
+          <div style={{ ...certificateFieldStyle, left: '-10%', top: '67%', width: '84%', height: '4%', fontSize: 'min(17px, 1.61cqw)' }}>
             {yearValue}
           </div>
 
-          <div style={{ ...certificateFieldStyle, left: '35.1%', bottom: '17.4%', width: '18.4%', height: '3.6%', fontSize: 'min(17px, 1.61cqw)' }}>
+          <div style={{ ...certificateFieldStyle, left: '28%', top: '83.0%', width: '25%', height: '3.6%', fontSize: 'min(17px, 1.61cqw)', justifyContent: 'flex-start' }}>
             {trainingDuration}
           </div>
 
-          <div style={{ ...certificateFieldStyle, right: '14.5%', bottom: '17.4%', width: '17.4%', height: '3.6%', fontSize: 'min(17px, 1.61cqw)' }}>
+          <div style={{ ...certificateFieldStyle, left: '20%', top: '88.0%', width: '25%', height: '3.6%', fontSize: 'min(17px, 1.61cqw)', justifyContent: 'flex-start' }}>
             {issueDate}
           </div>
         </div>
@@ -136,8 +137,8 @@ const CertificateCard = ({ user, course }) => {
 export default function StudentDashboard() {
   const { activeTab } = useOutletContext() || { activeTab: 'dashboard' };
   const { user, setUser } = useAuth();
-  const navigate = useNavigate();
   
+
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({
     fullName: '',
@@ -156,7 +157,11 @@ export default function StudentDashboard() {
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizScore, setQuizScore] = useState(null);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const [videoWatchPercent, setVideoWatchPercent] = useState(0); // 0-100 for current video
+  const [, setSwitchBlockedToast] = useState(false); // show toast when blocked
   const videoRef = useRef(null);
+  const switchBlockedTimerRef = useRef(null);
+  const processedVideos = useRef(new Set());
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -220,11 +225,7 @@ export default function StudentDashboard() {
       const res = await apiService.put(`/users/${encodeURIComponent(user.email)}/profile`, formData);
       if (res.success) {
         // Build the base URL to resolve /uploads/ paths
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
-        const serverBaseUrl = API_BASE_URL.replace('/api', '');
-        const resolvedImage = res.user.profileImage
-          ? (res.user.profileImage.startsWith('http') ? res.user.profileImage : `${serverBaseUrl}${res.user.profileImage}`)
-          : '';
+        const resolvedImage = getFullMediaUrl(res.user.profileImage);
 
         // Merge new profile fields into existing user state (preserve role, dashboard, etc.)
         const updatedUser = {
@@ -256,14 +257,8 @@ export default function StudentDashboard() {
           
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
             {(() => {
-              const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
-              const serverBaseUrl = API_BASE_URL.replace('/api', '');
               const rawImg = isEditingProfile ? profileForm.profileImage : user.profileImage;
-              const resolvedImg = rawImg
-                ? (rawImg.startsWith('http') || rawImg.startsWith('blob:') || rawImg.startsWith('data:')
-                    ? rawImg
-                    : `${serverBaseUrl}${rawImg}`)
-                : '';
+              const resolvedImg = getFullMediaUrl(rawImg);
               return (
                 <div style={{ width: '120px', height: '120px', borderRadius: '50%', backgroundColor: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '4px solid #e0e7ff', overflow: 'hidden', flexShrink: 0, boxShadow: '0 10px 25px -5px rgba(37,99,235,0.2)' }}>
                   {resolvedImg ? (
@@ -403,22 +398,13 @@ export default function StudentDashboard() {
   const handleVideoEnded = async (videoUrl) => {
     if (!selectedCourse || !user) return;
     try {
-      await apiService.post(`/users/${encodeURIComponent(user.email)}/progress`, {
+      const res = await apiService.post(`/users/${encodeURIComponent(user.email)}/progress`, {
         courseId: selectedCourse._id || selectedCourse.id,
         videoUrl: videoUrl
       });
-      setUserProgress(prev => {
-        const newProgress = [...prev];
-        let pIndex = newProgress.findIndex(p => String(p.courseId) === String(selectedCourse._id || selectedCourse.id));
-        if (pIndex === -1) {
-          newProgress.push({ courseId: selectedCourse._id || selectedCourse.id, watchedVideos: [videoUrl], midCourseQuizCompleted: false, finalQuizCompleted: false });
-        } else {
-          if (!newProgress[pIndex].watchedVideos.includes(videoUrl)) {
-            newProgress[pIndex].watchedVideos = [...newProgress[pIndex].watchedVideos, videoUrl];
-          }
-        }
-        return newProgress;
-      });
+      if (res.success) {
+        setUserProgress(res.progress);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -517,14 +503,7 @@ export default function StudentDashboard() {
   const renderCourseViewer = () => {
     if (!selectedCourse) return null;
 
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
-    const serverBaseUrl = API_BASE_URL.replace('/api', '');
-
-    const getFullUrl = (url) => {
-      if (!url) return '';
-      if (url.startsWith('http')) return url;
-      return `${serverBaseUrl}${url}`;
-    };
+    const getFullUrl = getFullMediaUrl;
 
     const courseProg = userProgress.find(p => String(p.courseId) === String(selectedCourse._id || selectedCourse.id)) || { watchedVideos: [], midCourseQuizCompleted: false, finalQuizCompleted: false };
     const watchedSet = new Set(courseProg.watchedVideos || []);
@@ -646,22 +625,60 @@ export default function StudentDashboard() {
 
     const currentVideo = selectedCourse.videos && selectedCourse.videos.length > 0 ? selectedCourse.videos[currentVideoIndex] : null;
 
+    // Helper: show blocked toast for 3 seconds
+    const showSwitchBlocked = () => {
+      setSwitchBlockedToast(true);
+      if (switchBlockedTimerRef.current) clearTimeout(switchBlockedTimerRef.current);
+      switchBlockedTimerRef.current = setTimeout(() => setSwitchBlockedToast(false), 3500);
+    };
+
+    // Whether current video has been watched >= 75% OR is already in watchedSet
+    const currentVideoAlreadyWatched = currentVideo && watchedSet.has(currentVideo.url);
+    const currentVideoUnlocked = currentVideoAlreadyWatched || videoWatchPercent >= 75;
+
+    const handleTimeUpdate = () => {
+      if (!videoRef.current || !videoRef.current.duration) return;
+      const pct = (videoRef.current.currentTime / videoRef.current.duration) * 100;
+      setVideoWatchPercent(Math.round(pct));
+      
+      if (pct >= 75 && currentVideo && !watchedSet.has(currentVideo.url)) {
+        if (!processedVideos.current.has(currentVideo.url)) {
+          processedVideos.current.add(currentVideo.url);
+          handleVideoEnded(currentVideo.url);
+        }
+      }
+    };
+
     const handleSelectVideo = (index) => {
       // Videos 6-12 (index >= 5) are locked if Mid Quiz is not completed
       if (index >= 5 && !courseProg.midCourseQuizCompleted) {
         setActiveQuiz({ type: 'mid', questions: midQuizQuestions, title: 'Mid-Course Quiz (Required to unlock Videos 6–12)' });
         return;
       }
+      // Can always re-select the current video
+      if (index === currentVideoIndex) return;
+      // Block switching if current video not yet watched 75%
+      if (!currentVideoUnlocked) {
+        showSwitchBlocked();
+        return;
+      }
+      setVideoWatchPercent(0);
       setCurrentVideoIndex(index);
     };
 
     const handleNextVideo = () => {
-      // Force mid quiz after 5 videos (index 4) if not completed
-      if (currentVideoIndex === 4 && !courseProg.midCourseQuizCompleted) {
-        setActiveQuiz({ type: 'mid', questions: midQuizQuestions, title: 'Mid-Course Quiz (After Video 5)' });
-      } else if (currentVideoIndex >= 4 && !courseProg.midCourseQuizCompleted) {
-        setActiveQuiz({ type: 'mid', questions: midQuizQuestions, title: 'Mid-Course Quiz (After Video 5)' });
+      // Block "Next" if current video not 75% watched
+      if (!currentVideoUnlocked) {
+        setSwitchBlockedToast(true);
+        if (switchBlockedTimerRef.current) clearTimeout(switchBlockedTimerRef.current);
+        switchBlockedTimerRef.current = setTimeout(() => setSwitchBlockedToast(false), 3500);
+        return;
+      }
+      
+      if (currentVideoIndex >= 4 && !courseProg.midCourseQuizCompleted) {
+        setActiveQuiz({ type: 'mid', questions: midQuizQuestions, title: 'Mid-Course Quiz (Required to unlock Videos 6–12)' });
       } else if (currentVideoIndex < totalVideos - 1) {
+        setVideoWatchPercent(0);
         setCurrentVideoIndex(prev => prev + 1);
       }
     };
@@ -759,7 +776,9 @@ export default function StudentDashboard() {
                     poster={getFullUrl(selectedCourse.image) || "/chemy2.png"}
                     src={getFullUrl(currentVideo.url)}
                     controlsList="nodownload"
+                    onTimeUpdate={handleTimeUpdate}
                     onEnded={() => {
+                      setVideoWatchPercent(100);
                       handleVideoEnded(currentVideo.url);
                       // Trigger Mid Quiz right after Video 5 ends
                       if (currentVideoIndex === 4 && !courseProg.midCourseQuizCompleted) {
@@ -772,6 +791,31 @@ export default function StudentDashboard() {
                     }}
                     style={{ width: '100%', height: '460px', objectFit: 'contain', background: '#000', display: 'block' }}
                   />
+
+                  {/* 75% Watch Progress Bar */}
+                  {!currentVideoAlreadyWatched && (
+                    <div style={{ padding: '10px 16px', background: '#090d16', borderTop: '1px solid #1e293b' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '11.5px', fontWeight: 700, color: videoWatchPercent >= 75 ? '#34d399' : '#94a3b8', letterSpacing: '0.4px' }}>
+                          {videoWatchPercent >= 75 ? '✅ 75% Watched — You can switch videos' : `⏱ Watch Progress: ${videoWatchPercent}% — Need 75% to switch`}
+                        </span>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: videoWatchPercent >= 75 ? '#34d399' : '#f59e0b' }}>
+                          {videoWatchPercent}% / 75%
+                        </span>
+                      </div>
+                      <div style={{ height: '6px', background: '#1e293b', borderRadius: '99px', overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%',
+                          width: `${Math.min(videoWatchPercent, 100)}%`,
+                          background: videoWatchPercent >= 75
+                            ? 'linear-gradient(90deg, #059669, #34d399)'
+                            : 'linear-gradient(90deg, #2563eb, #f59e0b)',
+                          borderRadius: '99px',
+                          transition: 'width 0.4s ease'
+                        }} />
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Video Navigation Bar */}
                   <div style={{ padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#090d16', borderTop: '1px solid #1e293b', flexWrap: 'wrap', gap: '12px' }}>
@@ -799,9 +843,21 @@ export default function StudentDashboard() {
                       {currentVideoIndex < totalVideos - 1 && (
                         <button 
                           onClick={handleNextVideo} 
-                          style={{ padding: '9px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px', boxShadow: '0 4px 12px rgba(37,99,235,0.3)' }}
+                          title={!currentVideoUnlocked ? `Watch at least 75% of this video first (${videoWatchPercent}% watched)` : 'Next Video'}
+                          style={{ 
+                            padding: '9px 18px', 
+                            background: currentVideoUnlocked ? '#2563eb' : '#374151', 
+                            color: currentVideoUnlocked ? '#fff' : '#9ca3af', 
+                            border: currentVideoUnlocked ? 'none' : '1px solid #4b5563', 
+                            borderRadius: '8px', 
+                            cursor: currentVideoUnlocked ? 'pointer' : 'not-allowed', 
+                            fontWeight: 700, 
+                            fontSize: '13px', 
+                            boxShadow: currentVideoUnlocked ? '0 4px 12px rgba(37,99,235,0.3)' : 'none',
+                            opacity: currentVideoUnlocked ? 1 : 0.7
+                          }}
                         >
-                          Next Video ⏭️
+                          {currentVideoUnlocked ? 'Next Video ⏭️' : `🔒 Next (${videoWatchPercent}% / 75%)`}
                         </button>
                       )}
 
@@ -944,13 +1000,12 @@ export default function StudentDashboard() {
               <p style={{ color: '#6b7280' }}>You don't have any assigned courses yet.</p>
             ) : (
               userAssignedCourses.map(course => {
-                const progressObj = userProgress.find(p => String(p.courseId) === String(course._id || course.id));
-                const progressPercent = progressObj ? 
-                  (progressObj.completedVideos?.length || 0) * 10 : 0; // Simplified progress
+                const progressObj = userProgress.find(p => String(p.courseId) === String(course._id || course.id) || String(p.courseId) === String(course.title));
+                const watchedCount = progressObj?.watchedVideos?.length || 0;
+                const totalVideos = course.videos?.length || 12;
+                const progressPercent = totalVideos > 0 ? Math.round((watchedCount / totalVideos) * 100) : 0;
                 
-                const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
-                const serverBaseUrl = API_BASE_URL.replace('/api', '');
-                const getFullUrl = (url) => url ? (url.startsWith('http') ? url : `${serverBaseUrl}${url}`) : '';
+                const getFullUrl = (url) => getFullMediaUrl(url);
 
                 return (
                   <div key={course._id || course.id || course.title} className={`${styles.premiumCard} ${styles.courseCard}`}>

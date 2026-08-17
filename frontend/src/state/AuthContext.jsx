@@ -19,14 +19,14 @@ export function AuthProvider({ children }) {
         body: JSON.stringify({ email, password, role }),
       });
     } catch (networkErr) {
-      throw new Error('Unable to connect to server. If using Render free tier, the server may take 30-50s to wake up, or please ensure your backend is running.');
+      throw new Error('Unable to connect to server. If using Render free tier, the server may take 30-50s to wake up, or please ensure your backend is running.', { cause: networkErr });
     }
 
     let data;
     try {
       data = await response.json();
-    } catch {
-      throw new Error('Backend server returned an invalid response. If using Render free tier, the backend may take 30-50s to wake up.');
+    } catch (err) {
+      throw new Error('Backend server returned an invalid response. If using Render free tier, the backend may take 30-50s to wake up.', { cause: err });
     }
 
     if (!response.ok || !data.success) {

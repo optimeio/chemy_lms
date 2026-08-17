@@ -1,6 +1,7 @@
 import { Suspense, useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../state/useAuth';
+import { getFullMediaUrl } from '../services/apiConfig';
 import styles from '../styles/DashboardShell.module.css';
 
 const roleNavigation = {
@@ -82,13 +83,9 @@ export default function DashboardShell() {
             🔔
           </button>
           {(() => {
-            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
-            const serverBaseUrl = API_BASE_URL.replace('/api', '');
             const rawImg = user.profileImage;
             const avatarSrc = rawImg
-              ? (rawImg.startsWith('http') || rawImg.startsWith('blob:') || rawImg.startsWith('data:')
-                  ? rawImg
-                  : `${serverBaseUrl}${rawImg}`)
+              ? getFullMediaUrl(rawImg)
               : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName)}&background=2563EB&color=fff`;
             return <img src={avatarSrc} alt="Profile Avatar" className={styles.avatar} style={{ width: '36px', height: '36px' }} onClick={() => handleSidebarAction(null, 'profile')} />;
           })()}
@@ -153,13 +150,9 @@ export default function DashboardShell() {
                 ✉️
               </button>
               {(() => {
-                const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
-                const serverBaseUrl = API_BASE_URL.replace('/api', '');
                 const rawImg = user.profileImage;
                 const avatarSrc = rawImg
-                  ? (rawImg.startsWith('http') || rawImg.startsWith('blob:') || rawImg.startsWith('data:')
-                      ? rawImg
-                      : `${serverBaseUrl}${rawImg}`)
+                  ? getFullMediaUrl(rawImg)
                   : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName)}&background=2563EB&color=fff`;
                 return <img src={avatarSrc} alt="Profile Avatar" className={styles.avatar} onClick={() => handleSidebarAction(null, 'profile')} />;
               })()}

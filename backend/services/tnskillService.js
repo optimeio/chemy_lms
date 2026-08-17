@@ -175,50 +175,30 @@ class TNSkillService {
   // TNSkill / KP API Integration Methods
 
   /**
-   * Subscribe a student to a course
-   * @param {Object} payload - { user_id, course_id, student_name, ... }
+   * Publish a course to TN Skill Development portal
+   * @param {Object} courseData
    */
-  async subscribeCourse(payload) {
+  async publishCourse(courseData) {
     try {
-      const response = await this.post('/api/course/subscribe/', payload);
+      const response = await this.post('/lms/client/course/publish/', courseData);
       return response.data;
     } catch (error) {
-      console.error('❌ Failed to subscribe to course:', error.response?.data || error.message);
-      // Return a failed status matching the expected response
-      return { subscription_registration_status: false };
+      console.error('❌ Failed to publish course:', error.response?.data || error.message);
+      throw error;
     }
   }
 
   /**
-   * Get course access URL for a student
-   * @param {Object} payload - { user_id, course_id, student_name, ... }
+   * Push student progress update to TN Skill Development portal
+   * @param {Object} progressData
    */
-  async getCourseAccess(payload) {
+  async updateStudentProgress(progressData) {
     try {
-      const response = await this.post('/api/course/access/', payload);
+      const response = await this.post('/lms/client/course/xf/', progressData);
       return response.data;
     } catch (error) {
-      console.error('❌ Failed to get course access:', error.response?.data || error.message);
-      return { access_status: false };
-    }
-  }
-
-  /**
-   * Get student progress for a specific course
-   * @param {Object} payload - { user_id, course_id }
-   */
-  async getStudentProgress(payload) {
-    try {
-      const response = await this.post('/api/student/progress', payload);
-      return response.data;
-    } catch (error) {
-      console.error('❌ Failed to get student progress:', error.response?.data || error.message);
-      return {
-        progress_percentage: "0.00",
-        certificate_issued: "false",
-        assessment_status: "false",
-        course_complete: "false"
-      };
+      console.error('❌ Failed to update student progress:', error.response?.data || error.message);
+      throw error;
     }
   }
 }

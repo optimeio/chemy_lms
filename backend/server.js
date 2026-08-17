@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const { execSync } = require('child_process');
 const net = require('net');
 const nodemailer = require('nodemailer');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const tnskillService = require('./services/tnskillService');
@@ -47,70 +48,6 @@ app.use(cors({
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 
-// ============ OTP & Password Reset Configuration ============
-// Store OTPs in memory (expires after 10 minutes)
-const otpStorage = new Map();
-
-// Email transporter configuration
-// Using Gmail SMTP - Update with environment variables for production
-const emailTransporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.SMTP_USER || 'your-email@gmail.com',
-    pass: process.env.SMTP_PASS || 'your-app-password', // Use Gmail App Password
-  },
-});
-
-// Verify email configuration only if credentials exist
-if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-  emailTransporter.verify((error, success) => {
-    if (error) {
-      console.warn('⚠️  Email service configuration issue:', error.message);
-      console.log('   Password reset emails will not be sent. Configure SMTP_USER and SMTP_PASS in .env');
-    } else {
-      console.log('✅ Email service is ready');
-    }
-  });
-} else {
-  console.log('ℹ️  SMTP credentials not found in .env. Password reset emails will be skipped.');
-}
-
-// Generate OTP
-const generateOTP = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
-
-// Send OTP email
-const sendOTPEmail = async (email, otp) => {
-  try {
-    const mailOptions = {
-      from: process.env.EMAIL_USER || 'noreply@chemylms.com',
-      to: email,
-      subject: 'Password Reset OTP - Chemy LMS',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #333; text-align: center;">Password Reset Request</h2>
-          <p style="color: #666; font-size: 14px;">Hi,</p>
-          <p style="color: #666; font-size: 14px;">You requested to reset your password. Use the OTP below to proceed:</p>
-          <div style="background-color: #f0f0f0; padding: 20px; text-align: center; margin: 20px 0; border-radius: 5px;">
-            <h1 style="color: #007bff; letter-spacing: 2px; margin: 0;">${otp}</h1>
-          </div>
-          <p style="color: #999; font-size: 12px;">This OTP will expire in 10 minutes.</p>
-          <p style="color: #999; font-size: 12px;">If you didn't request this, please ignore this email.</p>
-          <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
-          <p style="color: #999; font-size: 12px; text-align: center;">© Chemy LMS - Learning Management System</p>
-        </div>
-      `,
-    };
-
-    await emailTransporter.sendMail(mailOptions);
-    console.log(`✅ OTP sent to ${email}`);
-    return true;
-  } catch (error) {
-    console.error('Error sending OTP email:', error);
-    return false;
-  }
-};
 
 // Uploads directory configuration
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
@@ -437,110 +374,7 @@ const validatePhone = (phone) => {
 };
 
 // Routes
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const { fullName, email, phone, password, confirmPassword, gender, year, district, college, department } = req.body;
-
-    // Field validations
-    const errors = {};
-    if (!fullName || fullName.trim().length < 3) {
-      errors.fullName = 'Full Name must be at least 3 characters.';
-    }
-    if (!email || !validateEmail(email)) {
-      errors.email = 'Please provide a valid email address.';
-    }
-    if (!phone || !validatePhone(phone)) {
-      errors.phone = 'Please provide a valid 10-digit mobile number.';
-    }
-    if (!password || password.length < 8) {
-      errors.password = 'Password must be at least 8 characters long.';
-    } else if (!/(?=.*[A-Za-z])(?=.*\d)/.test(password)) {
-      errors.password = 'Password must contain both letters and numbers.';
-    }
-    if (password !== confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match.';
-    }
-    if (!gender || !['Male', 'Female', 'Other'].includes(gender)) {
-      errors.gender = 'Please select a valid gender.';
-    }
-    if (!year || !['I Year', 'II Year', 'III Year', 'IV Year'].includes(year)) {
-      errors.year = 'Please select your academic year.';
-    }
-    if (!college || college.trim() === '') {
-      errors.college = 'College selection is required.';
-    }
-    if (!department || department.trim() === '') {
-      errors.department = 'Department selection is required.';
-    }
-
-    const validDistricts = [
-      'Ariyalur', 'Chengalpattu', 'Chennai', 'Coimbatore', 'Cuddalore',
-      'Dharmapuri', 'Dindigul', 'Erode', 'Kallakurichi', 'Kanchipuram',
-      'Kanniyakumari', 'Karur', 'Krishnagiri', 'Madurai', 'Mayiladuthurai',
-      'Nagapattinam', 'Namakkal', 'Nilgiris', 'Perambalur', 'Pudukkottai',
-      'Ramanathapuram', 'Ranipet', 'Salem', 'Sivaganga', 'Tenkasi',
-      'Thanjavur', 'Theni', 'Thoothukudi', 'Tiruchirappalli', 'Tirunelveli',
-      'Tirupathur', 'Tiruppur', 'Tiruvallur', 'Tiruvannamalai', 'Tiruvarur',
-      'Vellore', 'Viluppuram', 'Virudhunagar'
-    ];
-    if (!district || !validDistricts.includes(district)) {
-      errors.district = 'Please select a valid district from the list.';
-    }
-
-    if (Object.keys(errors).length > 0) {
-      return res.status(400).json({ success: false, errors });
-    }
-
-    // Check if user already exists
-    if (isMongoConnected) {
-      const existingUser = await User.findOne({ email });
-      if (existingUser) {
-        return res.status(400).json({ success: false, errors: { email: 'Email is already registered.' } });
-      }
-
-      // Create new user in Mongo
-      const newUser = new User({ fullName, email, phone, password, gender, year, district, college, department, role: 'Student', dashboard: 'a', assignedCourses: [], progress: [] });
-      await newUser.save();
-      return res.status(201).json({
-        success: true,
-        message: 'Registration successful!',
-        user: { fullName, email, college, department, role: 'Student', dashboard: 'a' },
-      });
-    } else {
-      const localUsers = getLocalUsers();
-      if (localUsers.some(u => u.email === email)) {
-        return res.status(400).json({ success: false, errors: { email: 'Email is already registered.' } });
-      }
-
-      const newUser = {
-        fullName,
-        email,
-        phone,
-        password,
-        gender,
-        year,
-        district,
-        college,
-        department,
-        role: 'Student',
-        dashboard: 'a',
-        assignedCourses: [],
-        progress: [],
-        createdAt: new Date(),
-      };
-      saveLocalUser(newUser);
-      return res.status(201).json({
-        success: true,
-        message: 'Registration successful (stored locally)!',
-        user: { fullName, email, college, department, role: 'Student', dashboard: 'a' },
-      });
-    }
-
-  } catch (err) {
-    console.error('Registration error:', err);
-    res.status(500).json({ success: false, message: 'An internal server error occurred.' });
-  }
-});
+// Public registration has been disabled. Users are now exclusively created via the TN Skill Subscribe API.
 
 app.post('/api/auth/login', async (req, res) => {
   try {
@@ -598,181 +432,8 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// ============ PASSWORD RESET & OTP ROUTES ============
-
-// Forgot Password - Generate and send OTP
-app.post('/api/auth/forgot-password', async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    if (!email || !validateEmail(email)) {
-      return res.status(400).json({ success: false, message: 'Please provide a valid email address.' });
-    }
-
-    // Check if user exists
-    let userExists = false;
-
-    if (isMongoConnected) {
-      const user = await User.findOne({ email });
-      userExists = !!user;
-    } else {
-      const localUsers = getLocalUsers();
-      userExists = localUsers.some(u => u.email === email);
-    }
-
-    if (!userExists) {
-      // Security: Don't reveal if email exists
-      return res.json({
-        success: true,
-        message: 'If this email exists in our system, you will receive an OTP shortly.',
-      });
-    }
-
-    // Generate OTP
-    const otp = generateOTP();
-    const expiryTime = Date.now() + 10 * 60 * 1000; // 10 minutes
-
-    // Store OTP
-    otpStorage.set(email, { otp, expiryTime });
-
-    // Send OTP email
-    const emailSent = await sendOTPEmail(email, otp);
-
-    if (!emailSent) {
-      console.log(`Email failed to send. Fallback OTP for ${email}: ${otp}`);
-    }
-
-    res.json({
-      success: true,
-      message: 'OTP processed. For testing, use the code provided.',
-      otp: otp // Included for testing so it's always received
-    });
-  } catch (err) {
-    console.error('Forgot password error:', err);
-    res.status(500).json({ success: false, message: 'An error occurred. Please try again later.' });
-  }
-});
-
-// Verify OTP
-app.post('/api/auth/verify-otp', (req, res) => {
-  try {
-    const { email, otp } = req.body;
-
-    if (!email || !otp) {
-      return res.status(400).json({ success: false, message: 'Email and OTP are required.' });
-    }
-
-    const storedOtpData = otpStorage.get(email);
-
-    if (!storedOtpData) {
-      return res.status(400).json({ success: false, message: 'OTP not found or expired. Please request a new OTP.' });
-    }
-
-    const { otp: storedOtp, expiryTime } = storedOtpData;
-
-    // Check if OTP has expired
-    if (Date.now() > expiryTime) {
-      otpStorage.delete(email);
-      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new OTP.' });
-    }
-
-    // Verify OTP
-    if (otp !== storedOtp) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP. Please try again.' });
-    }
-
-    res.json({
-      success: true,
-      message: 'OTP verified successfully.',
-    });
-  } catch (err) {
-    console.error('OTP verification error:', err);
-    res.status(500).json({ success: false, message: 'An error occurred during verification.' });
-  }
-});
-
-// Reset Password
-app.post('/api/auth/reset-password', async (req, res) => {
-  try {
-    const { email, otp, newPassword, confirmPassword } = req.body;
-
-    if (!email || !otp || !newPassword || !confirmPassword) {
-      return res.status(400).json({ success: false, message: 'All fields are required.' });
-    }
-
-    if (newPassword !== confirmPassword) {
-      return res.status(400).json({ success: false, message: 'Passwords do not match.' });
-    }
-
-    if (newPassword.length < 8) {
-      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long.' });
-    }
-
-    if (!/(?=.*[A-Za-z])(?=.*\d)/.test(newPassword)) {
-      return res.status(400).json({ success: false, message: 'Password must contain both letters and numbers.' });
-    }
-
-    // Verify OTP first
-    const storedOtpData = otpStorage.get(email);
-
-    if (!storedOtpData) {
-      return res.status(400).json({ success: false, message: 'OTP not found or expired. Please request a new OTP.' });
-    }
-
-    const { otp: storedOtp, expiryTime } = storedOtpData;
-
-    if (Date.now() > expiryTime) {
-      otpStorage.delete(email);
-      return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new OTP.' });
-    }
-
-    if (otp !== storedOtp) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP. Password reset failed.' });
-    }
-
-    // OTP verified - Now reset password
-    if (isMongoConnected) {
-      const user = await User.findOneAndUpdate(
-        { email },
-        { password: newPassword },
-        { new: true }
-      );
-
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'User not found.' });
-      }
-
-      // Clear OTP after successful reset
-      otpStorage.delete(email);
-
-      return res.json({
-        success: true,
-        message: 'Password has been reset successfully. Please log in with your new password.',
-      });
-    } else {
-      const localUsers = getLocalUsers();
-      const index = localUsers.findIndex(u => u.email === email);
-
-      if (index === -1) {
-        return res.status(404).json({ success: false, message: 'User not found.' });
-      }
-
-      localUsers[index].password = newPassword;
-      fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
-
-      // Clear OTP after successful reset
-      otpStorage.delete(email);
-
-      return res.json({
-        success: true,
-        message: 'Password has been reset successfully. Please log in with your new password.',
-      });
-    }
-  } catch (err) {
-    console.error('Password reset error:', err);
-    res.status(500).json({ success: false, message: 'An error occurred during password reset.' });
-  }
-});
+// ============ PASSWORD RESET & OTP ROUTES REMOVED ============
+// Authentication is handled via the skill development portal's client key and secret.
 
 // File Upload helper functions
 const saveUploadedFile = (base64Data, originalName) => {
@@ -874,6 +535,21 @@ app.get('/api/courses/:id', apiKeyAuth, async (req, res) => {
   }
 });
 
+ // Helper for TN Skill Course Publish
+const pushCourseToTNSkill = (course) => {
+  const courseId = course._id || course.id;
+  const frontend_url = process.env.FRONTEND_URL || 'http://localhost:5173';
+  
+  tnskillService.publishCourse({
+    course_id: String(courseId),
+    course_name: course.title,
+    duration: course.duration || "Self Paced",
+    course_type: course.category || "Technical",
+    link: `${frontend_url}/course-player?course=${courseId}`
+  }).catch(e => console.error("TNSkill Course Publish Error:", e.message));
+};
+
+// Create Course
 app.post('/api/admin/courses', apiKeyAuth, upload.any(), async (req, res) => {
   try {
     const { title, courseCode, trainerName, category, status, image, content, ppts, videos, midCourseQuiz, finalAssessmentQuiz } = req.body;
@@ -923,6 +599,10 @@ app.post('/api/admin/courses', apiKeyAuth, upload.any(), async (req, res) => {
     if (isMongoConnected) {
       const newCourse = new Course(courseData);
       await newCourse.save();
+      
+      // Async sync to TN Skill Development
+      pushCourseToTNSkill(newCourse);
+      
       return res.status(201).json({ success: true, message: 'Course created successfully!', course: newCourse });
     } else {
       const localCourses = getLocalCourses();
@@ -930,6 +610,10 @@ app.post('/api/admin/courses', apiKeyAuth, upload.any(), async (req, res) => {
       const newCourse = { id: newId, ...courseData };
       localCourses.push(newCourse);
       saveLocalCourses(localCourses);
+      
+      // Async sync to TN Skill Development
+      pushCourseToTNSkill(newCourse);
+      
       return res.status(201).json({ success: true, message: 'Course created locally!', course: newCourse });
     }
   } catch (err) {
@@ -1298,6 +982,19 @@ app.post('/api/subscriptions/course', async (req, res) => {
   }
 });
 
+// Helper for TN Skill Progress Update
+const pushProgressToTNSkill = (email, courseId, progressData) => {
+  let percentage = 10.0; // Base progress
+  if (progressData.midCourseQuizCompleted) percentage += 40.0;
+  if (progressData.finalQuizCompleted) percentage += 50.0;
+  
+  tnskillService.updateStudentProgress({
+    user_id: email,
+    course_id: courseId,
+    completed_percentage: percentage.toFixed(2)
+  }).catch(e => console.error("TNSkill Progress Sync Error:", e.message));
+};
+
 app.post('/api/users/:email/progress', async (req, res) => {
   try {
     const { email } = req.params;
@@ -1364,6 +1061,10 @@ app.post('/api/users/:email/progress', async (req, res) => {
       }
 
       await user.save();
+      
+      // Async sync to TN Skill Development
+      pushProgressToTNSkill(user.email, courseId, courseProgress);
+      
       return res.json({ success: true, progress: user.progress });
     }
 
@@ -1429,6 +1130,10 @@ app.post('/api/users/:email/progress', async (req, res) => {
     }
 
     fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
+    
+    // Async sync to TN Skill Development
+    pushProgressToTNSkill(localUser.email, courseId, courseProgress);
+    
     return res.json({ success: true, progress: localUser.progress });
   } catch (err) {
     console.error('Error updating progress:', err);
@@ -1572,22 +1277,59 @@ app.post('/api/certificates/:id/mark-downloaded', async (req, res) => {
 const tnskillAuthMiddleware = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    if (req.path.includes('subscribe')) return res.json({ subscription_registration_status: false });
-    if (req.path.includes('access')) return res.json({ access_status: false });
-    return res.json({ progress_percentage: "0.00", certificate_issued: "false", assessment_status: "false", course_complete: "false" });
+    return res.status(401).json({ detail: "Authentication credentials were not provided." });
   }
 
   const token = authHeader.split(' ')[1];
-  // Verify token from environment variable TNSKILL_API_TOKEN
-  const expectedToken = process.env.TNSKILL_API_TOKEN || 'default_tnskill_token';
-  if (token !== expectedToken) {
-    if (req.path.includes('subscribe')) return res.json({ subscription_registration_status: false });
-    if (req.path.includes('access')) return res.json({ access_status: false });
-    return res.json({ progress_percentage: "0.00", certificate_issued: "false", assessment_status: "false", course_complete: "false" });
-  }
-
-  next();
+  const jwtSecret = process.env.JWT_SECRET || 'fallback_jwt_secret_key_123';
+  
+  jwt.verify(token, jwtSecret, (err, user) => {
+    if (err) {
+      return res.status(401).json({
+        detail: "Given token not valid for any token type",
+        code: "token_not_valid",
+        messages: [{ token_class: "AccessToken", token_type: "access", message: "Token is invalid or expired" }]
+      });
+    }
+    req.user = user;
+    next();
+  });
 };
+
+// Generate Token
+app.post('/api/token/', (req, res) => {
+  const { client_key, client_secret } = req.body;
+  
+  // Validate credentials against env
+  const expectedKey = process.env.KP_CLIENT_KEY || process.env.CLIENT_KEY || process.env.TNSKILL_CLIENT_KEY || 'FxEI1WEjJBYgXNbQ3rEcJTV0v0WQ';
+  const expectedSecret = process.env.KP_CLIENT_SECRET || process.env.CLIENT_SECRET || process.env.TNSKILL_CLIENT_SECRET || 'hsAUkbwgfMKtScEiu1LC601ZdPril50F';
+  
+  if (client_key !== expectedKey || client_secret !== expectedSecret) {
+    return res.status(401).json({ detail: "No active account found with the given credentials" });
+  }
+  
+  const jwtSecret = process.env.JWT_SECRET || 'fallback_jwt_secret_key_123';
+  const access_key = jwt.sign({ token_type: 'access' }, jwtSecret, { expiresIn: '1d' });
+  const refresh_key = jwt.sign({ token_type: 'refresh' }, jwtSecret, { expiresIn: '7d' });
+  
+  res.json({ access_key, refresh_key });
+});
+
+// Refresh Token
+app.post('/api/token/refresh/', (req, res) => {
+  const { refresh } = req.body;
+  if (!refresh) return res.status(400).json({ detail: "Refresh token is required" });
+  
+  const jwtSecret = process.env.JWT_SECRET || 'fallback_jwt_secret_key_123';
+  jwt.verify(refresh, jwtSecret, (err, decoded) => {
+    if (err || decoded.token_type !== 'refresh') {
+      return res.status(401).json({ detail: "Token is invalid or expired", code: "token_not_valid" });
+    }
+    const access_key = jwt.sign({ token_type: 'access' }, jwtSecret, { expiresIn: '1d' });
+    res.json({ access_key });
+  });
+});
+
 
 app.post('/api/course/subscribe/', tnskillAuthMiddleware, async (req, res) => {
   try {
@@ -1605,7 +1347,21 @@ app.post('/api/course/subscribe/', tnskillAuthMiddleware, async (req, res) => {
       }
 
       if (!user) {
-        return res.json({ subscription_registration_status: false });
+        user = new User({
+          fullName: req.body.student_name || 'TNSkill Student',
+          email: user_id,
+          phone: '0000000000',
+          password: 'TNSkill@2026',
+          gender: 'Other',
+          year: 'I Year',
+          district: 'Chennai',
+          college: 'TN Skill Development',
+          department: 'General',
+          role: 'Student',
+          dashboard: 'a',
+          assignedCourses: [],
+          progress: []
+        });
       }
 
       if (!user.assignedCourses.includes(course_id)) {
@@ -1617,15 +1373,27 @@ app.post('/api/course/subscribe/', tnskillAuthMiddleware, async (req, res) => {
       const localUsers = getLocalUsers();
       const userIndex = localUsers.findIndex(u => u.email === user_id || String(u.id) === user_id);
 
-      if (userIndex === -1) {
-        return res.json({ subscription_registration_status: false });
+      let finalUserIndex = userIndex;
+      if (finalUserIndex === -1) {
+        const newId = String(localUsers.length > 0 ? Math.max(...localUsers.map(u => Number(u.id || 0))) + 1 : 1);
+        const newUser = {
+          id: newId,
+          fullName: req.body.student_name || 'TNSkill Student',
+          email: user_id,
+          password: 'TNSkill@2026',
+          role: 'Student',
+          dashboard: 'a',
+          assignedCourses: []
+        };
+        localUsers.push(newUser);
+        finalUserIndex = localUsers.length - 1;
       }
 
-      if (!localUsers[userIndex].assignedCourses) {
-        localUsers[userIndex].assignedCourses = [];
+      if (!localUsers[finalUserIndex].assignedCourses) {
+        localUsers[finalUserIndex].assignedCourses = [];
       }
-      if (!localUsers[userIndex].assignedCourses.includes(course_id)) {
-        localUsers[userIndex].assignedCourses.push(course_id);
+      if (!localUsers[finalUserIndex].assignedCourses.includes(course_id)) {
+        localUsers[finalUserIndex].assignedCourses.push(course_id);
         fs.writeFileSync(USERS_FILE, JSON.stringify(localUsers, null, 2));
       }
       return res.json({ subscription_registration_status: true, subscription_reference_id });

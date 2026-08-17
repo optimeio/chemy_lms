@@ -4,9 +4,7 @@ import './App.css';
 import Login from './pages/Login';
 
 
-import ForgotPassword from './pages/ForgotPassword';
-import OTPVerification from './pages/OTPVerification';
-import ResetPassword from './pages/ResetPassword';
+
 import Dashboard from './pages/Dashboard';
 import AdminPortal from './pages/AdminPortal';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -23,9 +21,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/otp-verification" element={<OTPVerification />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+
         <Route path="/dashboard" element={<Navigate to="/app" replace />} />
         <Route path="/admin" element={<AdminPortal />} />
         <Route

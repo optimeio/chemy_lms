@@ -5,14 +5,14 @@ import '../styles/AdminPortal.css';
 import { midCourseQuizTemplate, finalAssessmentQuizTemplate } from '../data/iotQuizTemplate';
 import { apiService } from '../services/apiService';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://chemy-lms.onrender.com/api';
+import { getApiBaseUrl, getFullMediaUrl } from '../services/apiConfig';
+
+const API_BASE_URL = getApiBaseUrl();
 const API = `${API_BASE_URL}/admin`;
 const getFullUrl = (path) => {
   if (!path) return '';
-  if (path.startsWith('http') || path.startsWith('data:') || path.startsWith('blob:')) return path;
-  const baseUrl = API_BASE_URL.replace(/\/api$/, '');
-  // Add a cache buster to prevent the browser from showing a cached broken image
-  return `${baseUrl}${path}?cb=1`;
+  const url = getFullMediaUrl(path);
+  return url.includes('?') ? `${url}&cb=1` : `${url}?cb=1`;
 };
 
 /* ---- CSV helper ---- */
